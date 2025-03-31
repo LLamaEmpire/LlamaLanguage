@@ -64,6 +64,10 @@ def extract_words_from_apkg(deck_path: str) -> Dict[str, List[str]]:
             # Close the connection
             conn.close()
         
+        except Exception as e:
+            print(f"ERROR extracting words from deck: {str(e)}")
+            return {"other": []}
+            
         # Process the notes to extract words
         words_dict = {
             "nouns": [],
