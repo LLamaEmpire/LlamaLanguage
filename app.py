@@ -8,9 +8,10 @@ from pdf_processor import extract_text_from_pdf, find_word_sentences
 from nlp_processor import categorize_words
 from anki_manager import compare_with_existing_decks, create_anki_deck
 from audio_generator import generate_audio_for_words
-from utils import get_existing_decks, save_temp_file
+from utils import get_existing_decks, save_temp_file, get_existing_words
 from csv_exporter import export_words_to_csv, export_category_to_csv
 from local_script_integration import save_csv_for_local_processing, prepare_anki_script_config, prepare_audio_script_config, save_script_configuration
+from deck_storage import get_stored_decks, delete_stored_deck
 
 # Set page config
 st.set_page_config(
@@ -229,11 +230,16 @@ if uploaded_file is not None:
             
             # Step 2: Categorize words using NLP
             status_text.text("Categorizing words...")
+            
+            # Get existing words to prevent duplicates
+            existing_words_set = get_existing_words()
+            
             categorized_words = categorize_words(
                 pdf_text, 
                 language, 
                 min_length=min_word_length, 
-                word_types=word_types  # Use the selected word types
+                word_types=word_types,  # Use the selected word types
+                existing_words=existing_words_set  # Pass existing words for de-duplication
             )
             st.session_state.extracted_words = categorized_words
             
@@ -398,9 +404,9 @@ if uploaded_file is not None:
                         # Generate CSV with category words and their sentences
                         pdf_name = st.session_state.pdf_name
                         
-                        # Use pages in filename for better identification
-                        pages_info = f"pages_{start_page}_{end_page}"
-                        base_name = f"{os.path.splitext(pdf_name)[0]}_{pages_info}"
+                        # Use simple timestamp in filename for identification
+                        timestamp = time.strftime('%Y%m%d_%H%M%S')
+                        base_name = f"{os.path.splitext(pdf_name)[0]}_{timestamp}"
                         
                         csv_path = export_category_to_csv(
                             category,
@@ -442,6 +448,82 @@ if uploaded_file is not None:
     # Display error message if there was an error
     if st.session_state.error_message:
         st.error(st.session_state.error_message)
+
+# Add a section for deck management
+st.markdown("---")
+st.header("Anki Deck Management")
+st.write("Here you can view, manage, and delete stored Anki decks.")
+
+# Get all stored decks
+stored_decks = get_stored_decks()
+
+if stored_decks:
+    # Create a table to display stored decks
+    deck_table = {"Deck Name": [], "Created Date": [], "Actions": []}
+    
+    for i, deck_info in enumerate(stored_decks):
+        deck_name = deck_info['name']
+        deck_path = deck_info['path']
+        
+        # Extract timestamp from filename
+        timestamp = deck_info.get('timestamp', 'Unknown date')
+        if timestamp != 'Unknown date':
+            # Format timestamp for display (YYYYMMDD_HHMMSS to YYYY-MM-DD HH:MM:SS)
+            try:
+                date_part, time_part = timestamp.split('_')
+                formatted_date = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:]} {time_part[:2]}:{time_part[2:4]}:{time_part[4:]}"
+            except:
+                formatted_date = timestamp
+                
+        else:
+            formatted_date = timestamp
+        
+        deck_table["Deck Name"].append(deck_name)
+        deck_table["Created Date"].append(formatted_date)
+        
+        # For actions, we'll use buttons with unique keys
+        deck_table["Actions"].append(f"Delete {deck_name}")
+    
+    # Display the table
+    st.dataframe(deck_table, use_container_width=True)
+    
+    # Add action buttons below the table
+    st.subheader("Deck Actions")
+    
+    # Show a dropdown to select a deck
+    selected_deck_index = st.selectbox(
+        "Select a deck to manage:",
+        range(len(stored_decks)),
+        format_func=lambda i: stored_decks[i]['name']
+    )
+    
+    # Get the selected deck info
+    selected_deck = stored_decks[selected_deck_index]
+    deck_path = selected_deck['path']
+    
+    # Display actions for the selected deck
+    col1, col2 = st.columns(2)
+    with col1:
+        # Download option
+        with open(deck_path, "rb") as file:
+            st.download_button(
+                label=f"Download {selected_deck['name']}",
+                data=file,
+                file_name=selected_deck['name'],
+                mime="application/octet-stream"
+            )
+    
+    with col2:
+        # Delete option
+        if st.button(f"Delete {selected_deck['name']}"):
+            success = delete_stored_deck(deck_path)
+            if success:
+                st.success(f"Deck {selected_deck['name']} deleted successfully!")
+                st.rerun()  # Refresh the page
+            else:
+                st.error(f"Failed to delete deck {selected_deck['name']}")
+else:
+    st.info("No stored decks found. Decks you create will be stored here for future use.")
 
 # Footer
 st.markdown("---")

@@ -4,6 +4,8 @@ import genanki
 import random
 import time
 from typing import Dict, List, Set, Tuple, Any, Optional
+from deck_storage import save_deck_to_storage, get_words_from_all_stored_decks
+from utils import get_existing_words
 
 def get_existing_words_from_deck(deck_path: str) -> Dict[str, List[str]]:
     """
@@ -49,9 +51,10 @@ def compare_with_existing_decks(
     new_words_dict = {category: [] for category in new_words}
     existing_words_dict = {category: [] for category in new_words}
     
-    # Get all words from existing decks
-    all_existing_words = set()
+    # First get words from stored decks
+    all_existing_words = get_words_from_all_stored_decks()
     
+    # Then add words from specified existing decks
     for deck_path in existing_decks:
         # Handle the case where the deck path is in the format "name (path)"
         if " (" in deck_path and deck_path.endswith(")"):
@@ -70,10 +73,22 @@ def compare_with_existing_decks(
     # Convert all existing words to lowercase for case-insensitive comparison
     all_existing_words_lower = {word.lower() for word in all_existing_words}
     
+    # Keep track of words we've seen in this processing session to avoid duplicates
+    already_processed = set()
+    
     # Compare and categorize words
     for category, words in new_words.items():
         for word in words:
-            if word.lower() in all_existing_words_lower:
+            # Skip if we've already processed this word in another category
+            word_lower = word.lower()
+            if word_lower in already_processed:
+                continue
+            
+            # Mark as processed
+            already_processed.add(word_lower)
+            
+            # Check if word exists in existing decks
+            if word_lower in all_existing_words_lower:
                 existing_words_dict[category].append(word)
             else:
                 new_words_dict[category].append(word)
@@ -127,7 +142,8 @@ def create_anki_deck(
     words_dict: Dict[str, List[str]], 
     audio_files: Dict[str, str], 
     deck_name: str, 
-    language: str
+    language: str,
+    store_deck: bool = True
 ) -> str:
     """
     Create an Anki deck from the words.
@@ -137,6 +153,7 @@ def create_anki_deck(
         audio_files: Dictionary mapping words to audio file paths
         deck_name: Name for the new deck
         language: Language of the words
+        store_deck: Whether to save this deck to permanent storage
         
     Returns:
         Path to the created Anki deck file
@@ -187,5 +204,10 @@ def create_anki_deck(
     json_path = output_path.replace('.apkg', '.json')
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(words_dict, f, ensure_ascii=False, indent=2)
+    
+    # Store the deck in permanent storage if requested
+    if store_deck:
+        stored_path = save_deck_to_storage(output_path, deck_name)
+        print(f"Deck saved to permanent storage: {stored_path}")
     
     return output_path

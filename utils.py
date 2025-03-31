@@ -1,7 +1,9 @@
 import os
 import tempfile
 import glob
-from typing import List, Dict, Any, Optional
+import json
+from typing import List, Dict, Any, Optional, Set
+from deck_storage import get_stored_decks, get_words_from_all_stored_decks
 
 def get_existing_decks() -> List[str]:
     """
@@ -10,11 +12,22 @@ def get_existing_decks() -> List[str]:
     Returns:
         List of paths to existing Anki decks
     """
-    # Look for .apkg files in the current directory
-    deck_files = glob.glob("*.apkg")
+    # Get decks from the storage system first
+    stored_decks = get_stored_decks()
+    stored_deck_paths = [deck_info['path'] for deck_info in stored_decks]
     
-    # If no decks are found, return an empty list
-    if not deck_files:
+    # Look for .apkg files in the current directory that aren't in stored_decks
+    current_decks = glob.glob("*.apkg")
+    
+    # Combine lists (prioritizing stored decks)
+    all_decks = stored_deck_paths.copy()
+    for deck in current_decks:
+        # Only add if not already in the list
+        if deck not in all_decks:
+            all_decks.append(deck)
+    
+    # If no decks are found, create a sample deck for demonstration
+    if not all_decks:
         # Create a dummy deck for testing purposes
         dummy_deck = "example_deck.apkg"
         # Create a companion JSON file with some sample words
@@ -22,11 +35,10 @@ def get_existing_decks() -> List[str]:
         
         # Only create these files if they don't exist
         if not os.path.exists(dummy_json):
-            import json
             sample_words = {
                 "Nouns": ["house", "car", "book", "tree", "friend"],
                 "Verbs": ["run", "walk", "talk", "eat", "sleep"],
-                "Adjectives": ["big", "small", "happy", "sad", "good"]
+                "Adjectives": ["big/small", "happy/sad", "good"]
             }
             with open(dummy_json, 'w') as f:
                 json.dump(sample_words, f, indent=2)
@@ -34,7 +46,31 @@ def get_existing_decks() -> List[str]:
         # Return the dummy deck
         return [dummy_deck]
     
-    return deck_files
+    return all_decks
+
+def get_existing_words() -> Set[str]:
+    """
+    Get a set of words from all existing Anki decks.
+    
+    Returns:
+        Set of words that exist in decks
+    """
+    # Get words from all stored decks
+    all_words = get_words_from_all_stored_decks()
+    
+    # Also check local decks not in storage
+    for deck in glob.glob("*.apkg"):
+        json_file = deck.replace('.apkg', '.json')
+        if os.path.exists(json_file):
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    deck_data = json.load(f)
+                    for category, words in deck_data.items():
+                        all_words.update([w.lower() for w in words])
+            except Exception as e:
+                print(f"Error reading deck data from {json_file}: {str(e)}")
+    
+    return all_words
 
 def save_temp_file(uploaded_file) -> str:
     """
