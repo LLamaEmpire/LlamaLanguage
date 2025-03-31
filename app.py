@@ -2,6 +2,8 @@ import streamlit as st
 import os
 import tempfile
 import time
+import PyPDF2
+from typing import Optional, Tuple
 from pdf_processor import extract_text_from_pdf
 from nlp_processor import categorize_words
 from anki_manager import compare_with_existing_decks, create_anki_deck
@@ -61,6 +63,30 @@ with st.sidebar.expander("Advanced Options"):
 uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
 
 if uploaded_file is not None:
+    # Save uploaded file to a temporary file to determine the number of pages
+    temp_file_path = save_temp_file(uploaded_file)
+    
+    # Get the total number of pages in the PDF
+    try:
+        with open(temp_file_path, "rb") as file:
+            reader = PyPDF2.PdfReader(file)
+            total_pages = len(reader.pages)
+        
+        # Page range selection
+        st.write(f"PDF has {total_pages} pages")
+        col1, col2 = st.columns(2)
+        with col1:
+            start_page = st.number_input("Start page", min_value=1, max_value=total_pages, value=1)
+        with col2:
+            end_page = st.number_input("End page", min_value=start_page, max_value=total_pages, value=total_pages)
+        
+        page_range = (start_page, end_page)
+        st.write(f"Selected pages: {start_page} to {end_page}")
+    
+    except Exception as e:
+        st.error(f"Error reading PDF: {str(e)}")
+        page_range = None
+    
     # Create a button to start processing
     if st.button("Process PDF"):
         st.session_state.error_message = None
@@ -71,12 +97,17 @@ if uploaded_file is not None:
         status_text = st.empty()
         
         try:
-            # Save uploaded file to a temporary file
-            temp_file_path = save_temp_file(uploaded_file)
-            
-            # Step 1: Extract text from PDF
-            status_text.text("Extracting text from PDF...")
-            pdf_text = extract_text_from_pdf(temp_file_path)
+            # Ensure page range is defined
+            if 'start_page' not in locals() or 'end_page' not in locals() or 'page_range' not in locals():
+                start_page = 1
+                with open(temp_file_path, "rb") as file:
+                    reader = PyPDF2.PdfReader(file)
+                    end_page = len(reader.pages)
+                page_range = (start_page, end_page)
+                
+            # Step 1: Extract text from PDF with page range
+            status_text.text(f"Extracting text from pages {start_page} to {end_page}...")
+            pdf_text = extract_text_from_pdf(temp_file_path, page_range)
             progress_bar.progress(20)
             
             # Step 2: Categorize words using NLP

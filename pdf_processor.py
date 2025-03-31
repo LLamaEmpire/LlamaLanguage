@@ -2,14 +2,16 @@ import io
 import os
 import re
 import PyPDF2
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 
-def extract_text_from_pdf(pdf_path: str) -> str:
+def extract_text_from_pdf(pdf_path: str, page_range: Optional[Tuple[int, int]] = None) -> str:
     """
-    Extract text from a PDF file.
+    Extract text from a PDF file with optional page range specification.
     
     Args:
         pdf_path: Path to the PDF file
+        page_range: Tuple of (start_page, end_page) to extract (1-indexed as shown to user)
+                    If None, extracts all pages
         
     Returns:
         Extracted text as a string
@@ -21,8 +23,16 @@ def extract_text_from_pdf(pdf_path: str) -> str:
             reader = PyPDF2.PdfReader(file)
             num_pages = len(reader.pages)
             
-            # Extract text from each page
-            for page_num in range(num_pages):
+            # Determine page range
+            if page_range:
+                start_page = max(0, page_range[0] - 1)  # Convert from 1-indexed to 0-indexed
+                end_page = min(num_pages, page_range[1])  # Convert from 1-indexed to 0-indexed
+            else:
+                start_page = 0
+                end_page = num_pages
+            
+            # Extract text from each page in the range
+            for page_num in range(start_page, end_page):
                 page = reader.pages[page_num]
                 page_text = page.extract_text()
                 if page_text:
