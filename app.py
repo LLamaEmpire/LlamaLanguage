@@ -294,7 +294,9 @@ if uploaded_file is not None:
             
             # Step 4: Generate audio for new words (if enabled)
             if audio_enabled:
-                status_text.text("Generating audio for new words...")
+                status_text.text("Generating audio for new words (this may take some time due to API rate limits)...")
+                # Display a note about rate limiting
+                st.info("⚠️ Due to API rate limits, only a subset of words (max 50 per category) will have audio generated. This helps prevent 429 (Too Many Requests) errors.")
                 audio_files = generate_audio_for_words(new_words, language)
                 progress_bar.progress(80)
             else:
@@ -418,7 +420,9 @@ if uploaded_file is not None:
                 
                 if st.button("Generate Anki Deck"):
                     if audio_enabled:
-                        audio_files = generate_audio_for_words(st.session_state.new_words, language)
+                        st.info("⚠️ Due to API rate limits, only a subset of words (max 50 per category) will have audio generated. This helps prevent 429 (Too Many Requests) errors.")
+                        with st.spinner("Generating audio for words (this may take some time due to API rate limits)..."):
+                            audio_files = generate_audio_for_words(st.session_state.new_words, language)
                     else:
                         audio_files = {}
                         

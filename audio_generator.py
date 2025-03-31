@@ -70,15 +70,30 @@ def generate_audio_for_words(words_dict: Dict[str, List[str]], language: str) ->
     """
     audio_files = {}
     
-    # Process all words in all categories
+    # Process all words in all categories with rate limit handling
+    import time
+    total_words = sum(len(words) for words in words_dict.values())
+    processed_count = 0
+    
     for category, words in words_dict.items():
-        for word in words:
+        # Process only a subset of words per category to avoid rate limiting (max 50 words)
+        words_to_process = words[:min(50, len(words))]
+        for word in words_to_process:
             # Generate audio for the word
             audio_path = generate_audio_for_word(word, language)
             
             # Store the audio path if generation was successful
             if audio_path:
                 audio_files[word] = audio_path
+            
+            # Add a small delay between requests to avoid rate limiting
+            processed_count += 1
+            if processed_count % 5 == 0:  # Add delay every 5 words
+                time.sleep(1)  # Sleep for 1 second
+            
+            # Show progress
+            if processed_count % 10 == 0:
+                print(f"Generated audio for {processed_count}/{total_words} words...")
     
     return audio_files
 
@@ -94,10 +109,23 @@ def generate_audio_batch(words: List[str], language: str) -> Dict[str, str]:
         Dictionary mapping words to audio file paths
     """
     audio_files = {}
+    import time
     
-    for word in words:
+    # Limit to max 50 words per batch
+    words_to_process = words[:min(50, len(words))]
+    total_words = len(words_to_process)
+    
+    for i, word in enumerate(words_to_process):
         audio_path = generate_audio_for_word(word, language)
         if audio_path:
             audio_files[word] = audio_path
+        
+        # Add a small delay between requests to avoid rate limiting
+        if i % 5 == 0 and i > 0:  # Add delay every 5 words
+            time.sleep(1)  # Sleep for 1 second
+        
+        # Show progress
+        if i % 10 == 0 and i > 0:
+            print(f"Generated audio for {i}/{total_words} words in batch...")
     
     return audio_files
