@@ -15,8 +15,8 @@ from deck_storage import get_stored_decks, delete_stored_deck
 
 # Set page config
 st.set_page_config(
-    page_title="Spanish Learning Platform",
-    page_icon="🇪🇸",
+    page_title="Llama Empire - Spanish Anki Deck Builder",
+    page_icon="🦙",
     layout="wide"
 )
 
@@ -45,8 +45,8 @@ if 'category_csv_paths' not in st.session_state:
     st.session_state.category_csv_paths = {}
 
 # Main app
-st.title("Spanish Learning Platform")
-st.write("Upload a Spanish PDF, extract words, categorize them, and create Anki decks with audio.")
+st.title("Llama Empire - Spanish Anki Deck Builder")
+st.write("Power up your Spanish learning with PDF extraction, word categorization, and Anki deck creation with audio.")
 
 # Sidebar for configuration
 st.sidebar.header("Configuration")
@@ -558,7 +558,7 @@ if uploaded_file is not None:
 
 # Add a section for deck management
 st.markdown("---")
-st.header("Spanish Anki Deck Management")
+st.header("Llama Empire Deck Management")
 st.write("Here you can view, manage, and delete stored Spanish Anki decks.")
 
 # Get Spanish stored decks only
@@ -634,4 +634,4 @@ else:
 
 # Footer
 st.markdown("---")
-st.markdown("© 2025 Spanish Learning Platform")
+st.markdown("© Sebastian Skora 2025")
