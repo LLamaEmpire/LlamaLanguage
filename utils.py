@@ -85,6 +85,25 @@ def get_existing_words() -> Set[str]:
                                 processed_words.append(word)
                                 
                         all_words.update([w.lower() for w in processed_words])
+            except UnicodeDecodeError:
+                # Try with different encodings if utf-8 fails
+                try:
+                    with open(json_file, 'r', encoding='latin-1') as f:
+                        deck_data = json.load(f)
+                        for category, words in deck_data.items():
+                            # Process both formats: simple words and normalized adjectives (word/wordFeminine)
+                            processed_words = []
+                            for word in words:
+                                if '/' in word:
+                                    # Split and add both forms
+                                    parts = word.split('/')
+                                    processed_words.extend(parts)
+                                else:
+                                    processed_words.append(word)
+                                    
+                            all_words.update([w.lower() for w in processed_words])
+                except Exception as e:
+                    print(f"Error reading deck data with latin-1 encoding from {json_file}: {str(e)}")
             except Exception as e:
                 print(f"Error reading deck data from {json_file}: {str(e)}")
     

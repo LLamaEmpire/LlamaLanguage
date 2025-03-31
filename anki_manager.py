@@ -27,7 +27,16 @@ def get_existing_words_from_deck(deck_path: str) -> Dict[str, List[str]]:
         try:
             with open(json_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except Exception:
+        except UnicodeDecodeError:
+            # Try with different encodings if utf-8 fails
+            try:
+                with open(json_path, 'r', encoding='latin-1') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Error reading words from {json_path}: {str(e)}")
+                return {}
+        except Exception as e:
+            print(f"Error reading words from {json_path}: {str(e)}")
             return {}
     
     # If no companion file, return empty dict

@@ -214,6 +214,25 @@ def get_words_from_all_stored_decks(language: str = "Spanish") -> Set[str]:
                                 processed_words.append(word)
                         
                         all_words.update([w.lower() for w in processed_words])
+            except UnicodeDecodeError:
+                # Try with different encodings if utf-8 fails
+                try:
+                    with open(json_path, 'r', encoding='latin-1') as f:
+                        deck_words = json.load(f)
+                        for category, words in deck_words.items():
+                            # Handle both simple lists and normalized adjective formats (word/wordFeminine)
+                            processed_words = []
+                            for word in words:
+                                if '/' in word:
+                                    # Split and add both forms
+                                    parts = word.split('/')
+                                    processed_words.extend(parts)
+                                else:
+                                    processed_words.append(word)
+                            
+                            all_words.update([w.lower() for w in processed_words])
+                except Exception as e:
+                    print(f"Error reading words with latin-1 encoding from {json_path}: {str(e)}")
             except Exception as e:
                 print(f"Error reading words from {json_path}: {str(e)}")
     
