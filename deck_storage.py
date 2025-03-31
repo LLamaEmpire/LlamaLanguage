@@ -182,6 +182,39 @@ def delete_stored_deck(deck_path: str) -> bool:
         print(f"Error deleting deck: {str(e)}")
         return False
 
+def is_valid_json_file(file_path: str) -> bool:
+    """
+    Check if a file is a valid JSON file.
+    
+    Args:
+        file_path: Path to the file to check
+        
+    Returns:
+        True if the file is a valid JSON file, False otherwise
+    """
+    try:
+        # Try to read the first few bytes to check if it's a binary file
+        with open(file_path, 'rb') as f:
+            header = f.read(8)
+            # Check for common binary file signatures
+            if header.startswith(b'PK') or header.startswith(b'\x1F\x8B'):
+                return False
+        
+        # Try to parse as JSON
+        with open(file_path, 'r', encoding='utf-8') as f:
+            json.load(f)
+        return True
+    except UnicodeDecodeError:
+        # Try with latin-1 encoding
+        try:
+            with open(file_path, 'r', encoding='latin-1') as f:
+                json.load(f)
+            return True
+        except:
+            return False
+    except:
+        return False
+
 def get_words_from_all_stored_decks(language: str = "Spanish") -> Set[str]:
     """
     Get all words from all stored decks of a specific language.
@@ -198,7 +231,7 @@ def get_words_from_all_stored_decks(language: str = "Spanish") -> Set[str]:
         deck_path = deck_info['path']
         json_path = deck_path.replace('.apkg', '.json')
         
-        if os.path.exists(json_path):
+        if os.path.exists(json_path) and is_valid_json_file(json_path):
             try:
                 with open(json_path, 'r', encoding='utf-8') as f:
                     deck_words = json.load(f)

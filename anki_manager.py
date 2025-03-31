@@ -23,7 +23,10 @@ def get_existing_words_from_deck(deck_path: str) -> Dict[str, List[str]]:
     # For demonstration, let's assume we have a companion JSON file with the words
     json_path = deck_path.replace('.apkg', '.json')
     
-    if os.path.exists(json_path):
+    from deck_storage import is_valid_json_file
+    
+    # Check if the JSON file exists and is a valid JSON file
+    if os.path.exists(json_path) and is_valid_json_file(json_path):
         try:
             with open(json_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -39,7 +42,7 @@ def get_existing_words_from_deck(deck_path: str) -> Dict[str, List[str]]:
             print(f"Error reading words from {json_path}: {str(e)}")
             return {}
     
-    # If no companion file, return empty dict
+    # If no companion file or not a valid JSON, return empty dict
     return {}
 
 def compare_with_existing_decks(

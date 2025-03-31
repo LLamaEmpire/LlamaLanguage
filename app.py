@@ -98,23 +98,63 @@ if st.session_state.uploaded_deck_names:
         st.session_state.uploaded_deck_names = []
         st.sidebar.success("All uploaded decks have been cleared")
 
-# Existing deck selection
-existing_decks = get_existing_decks()
-if st.session_state.custom_deck_paths:
-    # Add uploaded decks with their names for better identification
-    named_decks = []
-    for i, path in enumerate(st.session_state.custom_deck_paths):
-        if i < len(st.session_state.uploaded_deck_names):
-            named_decks.append(f"{st.session_state.uploaded_deck_names[i]} ({path})")
-        else:
-            named_decks.append(path)
-    existing_decks.extend(named_decks)
+# Existing deck selection - only use decks from the deck management section
+stored_deck_options = []
+stored_deck_info = {}  # Store deck info for displaying words
 
+# Get stored decks from the management section
+stored_decks = get_stored_decks(language_filter="Spanish")
+for deck_info in stored_decks:
+    display_name = deck_info['name']
+    path = deck_info['path']
+    stored_deck_options.append(f"{display_name} ({path})")
+    stored_deck_info[f"{display_name} ({path})"] = deck_info
+
+# If no stored decks, provide a message in the sidebar
+if not stored_deck_options:
+    st.sidebar.info("No stored Spanish decks found. Upload a deck or create a new one to compare with.")
+
+# Allow selecting from stored decks
 selected_decks = st.sidebar.multiselect(
     "Select decks to compare with",
-    existing_decks,
-    default=existing_decks[:1] if existing_decks else []
+    stored_deck_options,
+    default=stored_deck_options[:1] if stored_deck_options else []
 )
+
+# Show words in selected decks if any are selected
+if selected_decks:
+    with st.sidebar.expander("Words in selected decks"):
+        for deck_option in selected_decks:
+            # Extract the path from the format "name (path)"
+            if " (" in deck_option and deck_option.endswith(")"):
+                deck_path = deck_option.split(" (", 1)[1].rstrip(")")
+                deck_name = deck_option.split(" (", 1)[0]
+                
+                # Get the words from this deck
+                from deck_storage import is_valid_json_file
+                json_path = deck_path.replace('.apkg', '.json')
+                
+                if os.path.exists(json_path) and is_valid_json_file(json_path):
+                    try:
+                        with open(json_path, 'r', encoding='utf-8') as f:
+                            deck_words = json.load(f)
+                            st.write(f"**{deck_name}**")
+                            
+                            # Show words by category with a limit
+                            for category, words in deck_words.items():
+                                if words:
+                                    # Limit to 10 words per category to avoid cluttering the sidebar
+                                    display_words = words[:10]
+                                    if len(words) > 10:
+                                        display_words.append(f"... and {len(words) - 10} more")
+                                    
+                                    st.write(f"*{category}*: {', '.join(display_words)}")
+                    except Exception as e:
+                        st.write(f"Error reading words from {deck_name}: {str(e)}")
+                else:
+                    st.write(f"No valid word list found for {deck_name}")
+            else:
+                st.write(f"Cannot display words for {deck_option}")
 
 # Word type selection
 st.sidebar.subheader("Word Types to Include")

@@ -12,45 +12,12 @@ def get_existing_decks() -> List[str]:
     Returns:
         List of paths to existing Spanish Anki decks
     """
-    # Get Spanish decks from the storage system first
+    # Get Spanish decks from the storage system only
     stored_decks = get_stored_decks(language_filter="Spanish")
     stored_deck_paths = [deck_info['path'] for deck_info in stored_decks]
     
-    # Look for Spanish .apkg files in the current directory that aren't in stored_decks
-    current_decks = []
-    for deck in glob.glob("*.apkg"):
-        # Check if the deck is likely a Spanish deck
-        if "spanish" in deck.lower() or "espanol" in deck.lower() or "español" in deck.lower():
-            current_decks.append(deck)
-    
-    # Combine lists (prioritizing stored decks)
-    all_decks = stored_deck_paths.copy()
-    for deck in current_decks:
-        # Only add if not already in the list
-        if deck not in all_decks:
-            all_decks.append(deck)
-    
-    # If no decks are found, create a sample Spanish deck for demonstration
-    if not all_decks:
-        # Create a dummy deck for testing purposes
-        dummy_deck = "example_spanish_deck.apkg"
-        # Create a companion JSON file with some sample Spanish words
-        dummy_json = "example_spanish_deck.json"
-        
-        # Only create these files if they don't exist
-        if not os.path.exists(dummy_json):
-            sample_words = {
-                "Nouns": ["casa", "coche", "libro", "árbol", "amigo/amiga"],
-                "Verbs": ["correr", "caminar", "hablar", "comer", "dormir"],
-                "Adjectives": ["grande/pequeño", "feliz/triste", "bueno/buena"]
-            }
-            with open(dummy_json, 'w') as f:
-                json.dump(sample_words, f, indent=2)
-        
-        # Return the dummy deck
-        return [dummy_deck]
-    
-    return all_decks
+    # Return stored decks only - we no longer look for local decks
+    return stored_deck_paths
 
 def get_existing_words() -> Set[str]:
     """
@@ -59,53 +26,8 @@ def get_existing_words() -> Set[str]:
     Returns:
         Set of Spanish words that exist in decks
     """
-    # Get words from all stored Spanish decks
+    # Get words only from stored Spanish decks
     all_words = get_words_from_all_stored_decks(language="Spanish")
-    
-    # Also check local Spanish decks not in storage
-    for deck in glob.glob("*.apkg"):
-        # Only process Spanish decks
-        if not ("spanish" in deck.lower() or "espanol" in deck.lower() or "español" in deck.lower()):
-            continue
-            
-        json_file = deck.replace('.apkg', '.json')
-        if os.path.exists(json_file):
-            try:
-                with open(json_file, 'r', encoding='utf-8') as f:
-                    deck_data = json.load(f)
-                    for category, words in deck_data.items():
-                        # Process both formats: simple words and normalized adjectives (word/wordFeminine)
-                        processed_words = []
-                        for word in words:
-                            if '/' in word:
-                                # Split and add both forms
-                                parts = word.split('/')
-                                processed_words.extend(parts)
-                            else:
-                                processed_words.append(word)
-                                
-                        all_words.update([w.lower() for w in processed_words])
-            except UnicodeDecodeError:
-                # Try with different encodings if utf-8 fails
-                try:
-                    with open(json_file, 'r', encoding='latin-1') as f:
-                        deck_data = json.load(f)
-                        for category, words in deck_data.items():
-                            # Process both formats: simple words and normalized adjectives (word/wordFeminine)
-                            processed_words = []
-                            for word in words:
-                                if '/' in word:
-                                    # Split and add both forms
-                                    parts = word.split('/')
-                                    processed_words.extend(parts)
-                                else:
-                                    processed_words.append(word)
-                                    
-                            all_words.update([w.lower() for w in processed_words])
-                except Exception as e:
-                    print(f"Error reading deck data with latin-1 encoding from {json_file}: {str(e)}")
-            except Exception as e:
-                print(f"Error reading deck data from {json_file}: {str(e)}")
     
     return all_words
 
