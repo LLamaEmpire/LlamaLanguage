@@ -45,18 +45,55 @@ language = st.sidebar.selectbox(
     index=0
 )
 
+# Anki deck upload
+st.sidebar.subheader("Upload Existing Anki Deck")
+uploaded_deck = st.sidebar.file_uploader(
+    "Upload an Anki deck (.apkg file)",
+    type="apkg",
+    help="Upload an existing Anki deck to compare with extracted words."
+)
+
+# Store uploaded deck in session state
+if uploaded_deck is not None:
+    deck_temp_path = save_temp_file(uploaded_deck)
+    if 'custom_deck_paths' not in st.session_state:
+        st.session_state.custom_deck_paths = []
+    
+    # Check if this deck is already in the list
+    if deck_temp_path not in st.session_state.custom_deck_paths:
+        st.session_state.custom_deck_paths.append(deck_temp_path)
+        st.sidebar.success(f"Deck '{uploaded_deck.name}' uploaded successfully!")
+
+# Display all uploaded decks
+if 'custom_deck_paths' in st.session_state and st.session_state.custom_deck_paths:
+    st.sidebar.write(f"Uploaded decks: {len(st.session_state.custom_deck_paths)}")
+
 # Existing deck selection
 existing_decks = get_existing_decks()
+if 'custom_deck_paths' in st.session_state:
+    existing_decks.extend(st.session_state.custom_deck_paths)
+
 selected_decks = st.sidebar.multiselect(
-    "Select existing decks to compare with",
+    "Select decks to compare with",
     existing_decks,
     default=existing_decks[:1] if existing_decks else []
 )
 
+# Word type selection
+st.sidebar.subheader("Word Types to Include")
+word_types = {
+    "nouns": st.sidebar.checkbox("Nouns", value=True),
+    "verbs": st.sidebar.checkbox("Verbs", value=True),
+    "adjectives": st.sidebar.checkbox("Adjectives", value=True),
+    "adverbs": st.sidebar.checkbox("Adverbs", value=True),
+    "proper_nouns": st.sidebar.checkbox("Proper Nouns", value=False),
+    "numbers": st.sidebar.checkbox("Numbers", value=False),
+    "other": st.sidebar.checkbox("Other", value=False)
+}
+
 # Advanced options
 with st.sidebar.expander("Advanced Options"):
     min_word_length = st.slider("Minimum word length", 1, 10, 3)
-    include_proper_nouns = st.checkbox("Include proper nouns", value=False)
     audio_enabled = st.checkbox("Generate audio", value=True)
 
 # File uploader with explicit type and additional help text
@@ -151,7 +188,7 @@ if uploaded_file is not None:
                 pdf_text, 
                 language, 
                 min_length=min_word_length, 
-                include_proper_nouns=include_proper_nouns
+                word_types=word_types  # Use the selected word types
             )
             st.session_state.extracted_words = categorized_words
             progress_bar.progress(40)

@@ -76,7 +76,8 @@ def categorize_words(
     text: str, 
     language: str, 
     min_length: int = 3, 
-    include_proper_nouns: bool = False
+    include_proper_nouns: bool = False,
+    word_types: dict = None
 ) -> Dict[str, List[str]]:
     """
     Categorize words in the text by their part of speech using spaCy.
@@ -86,6 +87,7 @@ def categorize_words(
         language: The language of the text
         min_length: Minimum word length to include
         include_proper_nouns: Whether to include proper nouns
+        word_types: Dictionary mapping word types to boolean values indicating inclusion
         
     Returns:
         Dictionary mapping categories to lists of words
@@ -98,6 +100,39 @@ def categorize_words(
     
     # Initialize categories
     categories = defaultdict(set)
+    
+    # Default word types (include all)
+    if word_types is None:
+        word_types = {
+            "nouns": True,
+            "verbs": True,
+            "adjectives": True,
+            "adverbs": True,
+            "proper_nouns": include_proper_nouns,
+            "numbers": False,
+            "other": False
+        }
+    
+    # Map category names to POS tags
+    category_to_pos = {
+        "nouns": ["NOUN"],
+        "verbs": ["VERB"],
+        "adjectives": ["ADJ"],
+        "adverbs": ["ADV"],
+        "proper_nouns": ["PROPN"],
+        "numbers": ["NUM"],
+        "other": ["ADP", "CONJ", "DET", "PRON", "INTJ", "PART", "SYM", "X"]
+    }
+    
+    # Create a set of allowed POS tags based on selected word types
+    allowed_pos = set()
+    for category, include in word_types.items():
+        if include and category in category_to_pos:
+            allowed_pos.update(category_to_pos[category])
+    
+    # If proper_nouns is explicitly set in word_types, override include_proper_nouns
+    if "proper_nouns" in word_types:
+        include_proper_nouns = word_types["proper_nouns"]
     
     # Process words
     for token in doc:
@@ -114,6 +149,10 @@ def categorize_words(
         
         # Skip proper nouns if not included
         if token.pos_ == "PROPN" and not include_proper_nouns:
+            continue
+        
+        # Skip words with POS tags not in the allowed set
+        if token.pos_ not in allowed_pos:
             continue
         
         # Add word to its category
