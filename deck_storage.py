@@ -13,6 +13,67 @@ def ensure_storage_dir():
     if not os.path.exists(DECK_STORAGE_DIR):
         os.makedirs(DECK_STORAGE_DIR)
 
+def extract_words_from_apkg(deck_path: str) -> Dict[str, List[str]]:
+    """
+    Extract words from an Anki deck file.
+    
+    Args:
+        deck_path: Path to the Anki deck file
+        
+    Returns:
+        Dictionary of categorized words
+    """
+    import sqlite3
+    import zipfile
+    import tempfile
+    
+    # Create a temporary directory to extract the apkg
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Extract the apkg (it's just a zip file)
+        with zipfile.ZipFile(deck_path, 'r') as zip_ref:
+            zip_ref.extractall(temp_dir)
+        
+        # Connect to the extracted database
+        db_path = os.path.join(temp_dir, 'collection.anki2')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Get all notes (which contain the actual card content)
+        cursor.execute("SELECT flds FROM notes")
+        notes = cursor.fetchall()
+        
+        # Close the connection
+        conn.close()
+        
+        # Process the notes to extract words
+        words_dict = {
+            "nouns": [],
+            "verbs": [],
+            "adjectives": [],
+            "adverbs": [],
+            "other": []
+        }
+        
+        for note in notes:
+            # Split fields (they're separated by \x1f)
+            fields = note[0].split('\x1f')
+            if fields:
+                word = fields[0].strip()  # First field is usually the word
+                
+                # Simple categorization based on common patterns
+                if word.endswith('ar') or word.endswith('er') or word.endswith('ir'):
+                    words_dict["verbs"].append(word)
+                elif word.endswith('mente'):
+                    words_dict["adverbs"].append(word)
+                elif word.endswith('o') or word.endswith('a'):
+                    words_dict["adjectives"].append(word)
+                elif word[0].isupper():
+                    words_dict["nouns"].append(word)
+                else:
+                    words_dict["other"].append(word)
+        
+        return words_dict
+
 def save_deck_to_storage(deck_path: str, deck_name: Optional[str] = None, language: str = "Spanish") -> str:
     """
     Save an Anki deck to permanent storage.
@@ -47,11 +108,20 @@ def save_deck_to_storage(deck_path: str, deck_name: Optional[str] = None, langua
     # Copy the deck file
     shutil.copy2(deck_path, new_path)
     
-    # If there's a companion JSON file, copy it too
-    json_path = deck_path.replace('.apkg', '.json')
-    if os.path.exists(json_path):
-        new_json_path = new_path.replace('.apkg', '.json')
-        shutil.copy2(json_path, new_json_path)
+    # Extract words from the deck and create companion JSON
+    if deck_path.endswith('.apkg'):
+        try:
+            words_dict = extract_words_from_apkg(deck_path)
+            new_json_path = new_path.replace('.apkg', '.json')
+            with open(new_json_path, 'w', encoding='utf-8') as f:
+                json.dump(words_dict, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Warning: Could not extract words from deck: {str(e)}")
+            # If extraction fails, copy existing JSON if available
+            json_path = deck_path.replace('.apkg', '.json')
+            if os.path.exists(json_path):
+                new_json_path = new_path.replace('.apkg', '.json')
+                shutil.copy2(json_path, new_json_path)
     
     return new_path
 
