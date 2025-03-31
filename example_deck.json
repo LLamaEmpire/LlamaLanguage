@@ -1,0 +1,23 @@
+{
+  "Nouns": [
+    "house",
+    "car",
+    "book",
+    "tree",
+    "friend"
+  ],
+  "Verbs": [
+    "run",
+    "walk",
+    "talk",
+    "eat",
+    "sleep"
+  ],
+  "Adjectives": [
+    "big",
+    "small",
+    "happy",
+    "sad",
+    "good"
+  ]
+}

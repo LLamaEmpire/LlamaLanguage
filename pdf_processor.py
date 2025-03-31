@@ -1,0 +1,87 @@
+import io
+import os
+import re
+import PyPDF2
+from typing import List, Dict, Any
+
+def extract_text_from_pdf(pdf_path: str) -> str:
+    """
+    Extract text from a PDF file.
+    
+    Args:
+        pdf_path: Path to the PDF file
+        
+    Returns:
+        Extracted text as a string
+    """
+    text = ""
+    
+    try:
+        with open(pdf_path, "rb") as file:
+            reader = PyPDF2.PdfReader(file)
+            num_pages = len(reader.pages)
+            
+            # Extract text from each page
+            for page_num in range(num_pages):
+                page = reader.pages[page_num]
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+        
+        # Clean the text
+        text = clean_text(text)
+        return text
+    
+    except Exception as e:
+        raise Exception(f"Failed to extract text from PDF: {str(e)}")
+
+def clean_text(text: str) -> str:
+    """
+    Clean the extracted text by removing unwanted characters and normalizing whitespace.
+    
+    Args:
+        text: The raw extracted text
+        
+    Returns:
+        Cleaned text
+    """
+    # Replace multiple whitespace with a single space
+    text = re.sub(r'\s+', ' ', text)
+    
+    # Remove non-printable characters
+    text = re.sub(r'[^\x20-\x7E\n]', '', text)
+    
+    # Remove page numbers (common formats)
+    text = re.sub(r'\n\s*\d+\s*\n', '\n', text)
+    
+    # Remove header/footer patterns (if found)
+    text = re.sub(r'^\s*\d+\s*$', '', text, flags=re.MULTILINE)
+    
+    # Remove urls
+    text = re.sub(r'https?://\S+', '', text)
+    
+    # Remove email addresses
+    text = re.sub(r'\S+@\S+', '', text)
+    
+    # Remove extra newlines
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text.strip()
+
+def get_paragraphs(text: str) -> List[str]:
+    """
+    Split the text into paragraphs.
+    
+    Args:
+        text: The cleaned text
+        
+    Returns:
+        List of paragraphs
+    """
+    # Split text by double newlines
+    paragraphs = re.split(r'\n\s*\n', text)
+    
+    # Filter out empty paragraphs
+    paragraphs = [p.strip() for p in paragraphs if p.strip()]
+    
+    return paragraphs
