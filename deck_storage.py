@@ -27,23 +27,42 @@ def extract_words_from_apkg(deck_path: str) -> Dict[str, List[str]]:
     import zipfile
     import tempfile
     
+    print(f"DEBUG: Opening deck file: {deck_path}")
+    
     # Create a temporary directory to extract the apkg
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Extract the apkg (it's just a zip file)
-        with zipfile.ZipFile(deck_path, 'r') as zip_ref:
-            zip_ref.extractall(temp_dir)
-        
-        # Connect to the extracted database
-        db_path = os.path.join(temp_dir, 'collection.anki2')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Get all notes (which contain the actual card content)
-        cursor.execute("SELECT flds FROM notes")
-        notes = cursor.fetchall()
-        
-        # Close the connection
-        conn.close()
+        try:
+            # Extract the apkg (it's just a zip file)
+            with zipfile.ZipFile(deck_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+                print(f"DEBUG: Successfully extracted deck to {temp_dir}")
+            
+            # Connect to the extracted database
+            db_path = os.path.join(temp_dir, 'collection.anki2')
+            if not os.path.exists(db_path):
+                print(f"DEBUG: Database file not found at {db_path}")
+                print(f"DEBUG: Directory contents: {os.listdir(temp_dir)}")
+                return {"other": []}
+                
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # First, try to get note model configurations
+            cursor.execute("SELECT flds FROM col")
+            model_configs = cursor.fetchall()
+            print(f"DEBUG: Found {len(model_configs)} model configurations")
+            
+            # Get all notes (which contain the actual card content)
+            cursor.execute("""
+                SELECT DISTINCT flds 
+                FROM notes 
+                WHERE flds IS NOT NULL AND length(trim(flds)) > 0
+            """)
+            notes = cursor.fetchall()
+            print(f"DEBUG: Found {len(notes)} notes")
+            
+            # Close the connection
+            conn.close()
         
         # Process the notes to extract words
         words_dict = {
@@ -54,14 +73,19 @@ def extract_words_from_apkg(deck_path: str) -> Dict[str, List[str]]:
             "other": []
         }
         
+        print("DEBUG: Processing notes...")
         for note in notes:
-            # Split fields (they're separated by \x1f)
-            fields = note[0].split('\x1f')
-            if fields:
+            try:
+                # Split fields (they're separated by \x1f)
+                fields = note[0].split('\x1f')
+                if not fields:
+                    continue
+                    
                 word = fields[0].strip()  # First field is usually the word
                 
                 # Clean the word - remove HTML and extra whitespace
                 word = re.sub('<[^<]+?>', '', word).strip()
+                print(f"DEBUG: Processing word: {word}")
                 
                 # Skip empty words or non-word characters
                 if not word or not any(c.isalnum() for c in word):
