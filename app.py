@@ -3,12 +3,14 @@ import os
 import tempfile
 import time
 import PyPDF2
-from typing import Optional, Tuple
-from pdf_processor import extract_text_from_pdf
+from typing import Optional, Tuple, Dict, List
+from pdf_processor import extract_text_from_pdf, find_word_sentences
 from nlp_processor import categorize_words
 from anki_manager import compare_with_existing_decks, create_anki_deck
 from audio_generator import generate_audio_for_words
 from utils import get_existing_decks, save_temp_file
+from csv_exporter import export_words_to_csv, export_category_to_csv
+from local_script_integration import save_csv_for_local_processing, prepare_anki_script_config, prepare_audio_script_config, save_script_configuration
 
 # Set page config
 st.set_page_config(
@@ -30,6 +32,16 @@ if 'generated_deck_path' not in st.session_state:
     st.session_state.generated_deck_path = None
 if 'error_message' not in st.session_state:
     st.session_state.error_message = None
+if 'word_sentences' not in st.session_state:
+    st.session_state.word_sentences = {}
+if 'pdf_text' not in st.session_state:
+    st.session_state.pdf_text = ""
+if 'pdf_name' not in st.session_state:
+    st.session_state.pdf_name = ""
+if 'generated_csv_path' not in st.session_state:
+    st.session_state.generated_csv_path = None
+if 'category_csv_paths' not in st.session_state:
+    st.session_state.category_csv_paths = {}
 
 # Main app
 st.title("Language Learning Platform")
@@ -199,6 +211,20 @@ if uploaded_file is not None:
             # Step 1: Extract text from PDF with page range
             status_text.text(f"Extracting text from pages {start_page} to {end_page}...")
             pdf_text = extract_text_from_pdf(temp_file_path, page_range)
+            st.session_state.pdf_text = pdf_text
+            
+            # Store the PDF name (either from uploaded file or sample)
+            if use_sample:
+                st.session_state.pdf_name = "sample.pdf"
+            else:
+                # Get the original filename from the uploaded file
+                try:
+                    # Try to access the name attribute if it's a standard UploadedFile
+                    st.session_state.pdf_name = uploaded_file.name
+                except:
+                    # Fall back to just the temp file path if it's a synthetic file
+                    st.session_state.pdf_name = os.path.basename(temp_file_path)
+            
             progress_bar.progress(20)
             
             # Step 2: Categorize words using NLP
@@ -210,6 +236,17 @@ if uploaded_file is not None:
                 word_types=word_types  # Use the selected word types
             )
             st.session_state.extracted_words = categorized_words
+            
+            # Extract all words from all categories for sentence extraction
+            all_words = []
+            for category, words in categorized_words.items():
+                all_words.extend(words)
+            
+            # Find sentences containing these words
+            status_text.text("Extracting example sentences...")
+            word_sentences = find_word_sentences(pdf_text, all_words)
+            st.session_state.word_sentences = word_sentences
+            
             progress_bar.progress(40)
             
             # Step 3: Compare with existing decks
@@ -282,16 +319,125 @@ if uploaded_file is not None:
                     st.write("No words found in this category.")
         
         # Option to download the generated deck
-        if st.session_state.generated_deck_path:
-            with open(st.session_state.generated_deck_path, "rb") as file:
-                st.download_button(
-                    label="Download Anki Deck",
-                    data=file,
-                    file_name=os.path.basename(st.session_state.generated_deck_path),
-                    mime="application/octet-stream"
-                )
-        else:
-            st.info("No new words found, so no Anki deck was created.")
+        st.subheader("Export Options")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("Anki Deck:")
+            if st.session_state.generated_deck_path:
+                with open(st.session_state.generated_deck_path, "rb") as file:
+                    st.download_button(
+                        label="Download Anki Deck",
+                        data=file,
+                        file_name=os.path.basename(st.session_state.generated_deck_path),
+                        mime="application/octet-stream"
+                    )
+            else:
+                st.info("No new words found, so no Anki deck was created.")
+        
+        with col2:
+            st.write("CSV Export (for local scripts):")
+            
+            # Add option to export all words as CSV
+            if st.session_state.new_words and sum(len(words) for words in st.session_state.new_words.values()) > 0:
+                if st.button("Export All New Words as CSV"):
+                    # Generate CSV with all new words and their sentences
+                    pdf_name = st.session_state.pdf_name
+                    csv_path = export_words_to_csv(
+                        st.session_state.new_words,
+                        st.session_state.word_sentences,
+                        pdf_name,
+                        language
+                    )
+                    st.session_state.generated_csv_path = csv_path
+                    
+                    # Create a configuration file for local scripts
+                    config = prepare_anki_script_config(
+                        csv_path,
+                        f"New_{language}_Words_{time.strftime('%Y%m%d_%H%M%S')}",
+                        language
+                    )
+                    
+                    # Save the configuration
+                    config_path = save_script_configuration(
+                        config,
+                        f"anki_config_{language}"
+                    )
+                    
+                    st.success(f"CSV file and script configuration created successfully!")
+            
+            # Display download button for CSV if it exists
+            if st.session_state.generated_csv_path and os.path.exists(st.session_state.generated_csv_path):
+                with open(st.session_state.generated_csv_path, "rb") as file:
+                    st.download_button(
+                        label="Download CSV for Local Scripts",
+                        data=file,
+                        file_name=os.path.basename(st.session_state.generated_csv_path),
+                        mime="text/csv"
+                    )
+        
+        # Add export buttons for each category
+        st.subheader("Export by Category")
+        category_cols = st.columns(3)
+        
+        # Clear previous category exports if the user clicks this button
+        if st.button("Clear Previous Category Exports"):
+            st.session_state.category_csv_paths = {}
+            st.success("All category exports cleared")
+        
+        # Create export buttons for each category
+        for i, category in enumerate(st.session_state.new_words.keys()):
+            words = st.session_state.new_words[category]
+            if words:
+                with category_cols[i % 3]:
+                    # Format category name for display
+                    category_display = category.replace("_", " ").title()
+                    
+                    if st.button(f"Export {category_display} as CSV"):
+                        # Generate CSV with category words and their sentences
+                        pdf_name = st.session_state.pdf_name
+                        
+                        # Use pages in filename for better identification
+                        pages_info = f"pages_{start_page}_{end_page}"
+                        base_name = f"{os.path.splitext(pdf_name)[0]}_{pages_info}"
+                        
+                        csv_path = export_category_to_csv(
+                            category,
+                            words,
+                            st.session_state.word_sentences,
+                            base_name,
+                            language
+                        )
+                        
+                        # Store the path in session state
+                        st.session_state.category_csv_paths[category] = csv_path
+                        
+                        # Create a configuration file for local scripts
+                        config = prepare_anki_script_config(
+                            csv_path,
+                            f"{category}_{language}_{time.strftime('%Y%m%d_%H%M%S')}",
+                            language
+                        )
+                        
+                        # Save the configuration
+                        config_path = save_script_configuration(
+                            config,
+                            f"anki_config_{category}_{language}"
+                        )
+                        
+                        st.success(f"CSV file for {category_display} created! Use it with your local scripts.")
+                    
+                    # Show download button if category export exists
+                    if category in st.session_state.category_csv_paths and os.path.exists(st.session_state.category_csv_paths[category]):
+                        with open(st.session_state.category_csv_paths[category], "rb") as file:
+                            st.download_button(
+                                label=f"Download {category_display} CSV",
+                                data=file,
+                                file_name=os.path.basename(st.session_state.category_csv_paths[category]),
+                                mime="text/csv",
+                                key=f"download_{category}"  # Unique key for each button
+                            )
     
     # Display error message if there was an error
     if st.session_state.error_message:

@@ -2,7 +2,7 @@ import io
 import os
 import re
 import PyPDF2
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Set
 
 def extract_text_from_pdf(pdf_path: str, page_range: Optional[Tuple[int, int]] = None) -> str:
     """
@@ -95,3 +95,59 @@ def get_paragraphs(text: str) -> List[str]:
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
     
     return paragraphs
+
+
+def extract_sentences(text: str) -> List[str]:
+    """
+    Split the text into sentences.
+    
+    Args:
+        text: The text to process
+        
+    Returns:
+        List of sentences
+    """
+    # Simple sentence splitting by common sentence terminators
+    # This is a basic approach; a more sophisticated approach would use NLP
+    sentence_pattern = r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s'
+    sentences = re.split(sentence_pattern, text)
+    
+    # Clean and filter sentences
+    sentences = [s.strip() for s in sentences if s.strip()]
+    
+    return sentences
+
+
+def find_word_sentences(text: str, words: List[str]) -> Dict[str, List[str]]:
+    """
+    Find sentences in the text that contain each word.
+    
+    Args:
+        text: The text to search in
+        words: List of words to find sentences for
+        
+    Returns:
+        Dictionary mapping each word to a list of sentences that contain it
+    """
+    # Extract all sentences from the text
+    sentences = extract_sentences(text)
+    
+    # Initialize result dictionary
+    word_sentences = {word: [] for word in words}
+    
+    # For each word, find sentences that contain it
+    for word in words:
+        # Create a pattern that matches the word as a whole word (not part of another word)
+        pattern = r'\b' + re.escape(word) + r'\b'
+        
+        # Case-insensitive search
+        regex = re.compile(pattern, re.IGNORECASE)
+        
+        # Find sentences that contain the word
+        for sentence in sentences:
+            if regex.search(sentence):
+                # Limit to 5 sentences per word to avoid excessive data
+                if len(word_sentences[word]) < 5:
+                    word_sentences[word].append(sentence)
+    
+    return word_sentences
