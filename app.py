@@ -98,7 +98,18 @@ if uploaded_file is not None:
         
         try:
             # Ensure page range is defined
-            if 'start_page' not in locals() or 'end_page' not in locals() or 'page_range' not in locals():
+            # The variables start_page, end_page, and page_range should already be set above,
+            # but let's provide a fallback just in case
+            try:
+                # Check if page_range exists and is valid
+                if not page_range or not isinstance(page_range, tuple) or len(page_range) != 2:
+                    start_page = 1
+                    with open(temp_file_path, "rb") as file:
+                        reader = PyPDF2.PdfReader(file)
+                        end_page = len(reader.pages)
+                    page_range = (start_page, end_page)
+            except NameError:
+                # If variables don't exist at all, define them
                 start_page = 1
                 with open(temp_file_path, "rb") as file:
                     reader = PyPDF2.PdfReader(file)

@@ -2,6 +2,7 @@ import nltk
 import re
 from typing import Dict, List, Set, Tuple
 import spacy
+import spacy.cli
 from collections import defaultdict
 
 # Download required NLTK data
@@ -68,7 +69,6 @@ def load_language_model(language: str):
         return nlp
     except OSError:
         # If model not found, download it
-        import spacy.cli
         spacy.cli.download(model_name)
         return spacy.load(model_name)
 
