@@ -9,6 +9,7 @@ dependencies = [
     "gtts>=2.5.4",
     "nltk>=3.9.1",
     "pypdf2>=3.0.1",
+    "requests>=2.32.3",
     "sift-stack-py>=0.4.2",
     "spacy>=3.8.4",
     "streamlit>=1.44.0",

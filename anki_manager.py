@@ -243,9 +243,13 @@ def create_anki_deck(
     for category, words in merged_words_dict.items():
         for word in words:
             # Create note fields
+            # Get translation
+            from sonnet_translator import translate_text
+            translation = translate_text(word, source_lang="es", target_lang="en") or f"[{language} translation]"
+            
             fields = [
                 word,                               # Word
-                f"[{language} translation]",        # Translation placeholder
+                translation,                        # Translation
                 category,                           # Part of Speech
                 f"[Example sentence with {word}]",  # Example placeholder
                 ""                                  # Audio placeholder
