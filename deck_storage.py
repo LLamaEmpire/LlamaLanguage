@@ -127,9 +127,14 @@ def get_stored_decks(language_filter: Optional[str] = None) -> List[Dict[str, st
     
     decks = []
     for filename in os.listdir(DECK_STORAGE_DIR):
-        if filename.endswith('.apkg'):
+        # Include both .apkg files and files without extension (which are valid JSON files)
+        if filename.endswith('.apkg') or (os.path.isfile(os.path.join(DECK_STORAGE_DIR, filename)) and '.' not in filename):
             path = os.path.join(DECK_STORAGE_DIR, filename)
             
+            # For files without extension, check if they're valid JSON
+            if '.' not in filename and not is_valid_json_file(path):
+                continue
+                
             # Extract language from filename
             language = extract_language_from_filename(filename)
             
@@ -171,10 +176,11 @@ def delete_stored_deck(deck_path: str) -> bool:
         if os.path.exists(deck_path):
             os.remove(deck_path)
             
-            # Also remove the companion JSON if it exists
-            json_path = deck_path.replace('.apkg', '.json')
-            if os.path.exists(json_path):
-                os.remove(json_path)
+            # For .apkg files, also remove the companion JSON if it exists
+            if deck_path.endswith('.apkg'):
+                json_path = deck_path.replace('.apkg', '.json')
+                if os.path.exists(json_path):
+                    os.remove(json_path)
             
             return True
         return False
@@ -229,8 +235,14 @@ def get_words_from_all_stored_decks(language: str = "Spanish") -> Set[str]:
     
     for deck_info in get_stored_decks(language_filter=language):
         deck_path = deck_info['path']
-        json_path = deck_path.replace('.apkg', '.json')
         
+        # Handle files without extension (which are already JSON files)
+        if '.' not in deck_path:
+            json_path = deck_path
+        else:
+            json_path = deck_path.replace('.apkg', '.json')
+        
+        # Process the JSON file if it exists and is valid
         if os.path.exists(json_path) and is_valid_json_file(json_path):
             try:
                 with open(json_path, 'r', encoding='utf-8') as f:
