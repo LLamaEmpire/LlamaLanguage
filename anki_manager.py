@@ -64,7 +64,14 @@ def compare_with_existing_decks(
         try:
             deck_words = get_existing_words_from_deck(deck_path)
             for category, words in deck_words.items():
-                all_existing_words.update(words)
+                # Process words considering both simple words and normalized adjective format (word/wordFeminine)
+                for word in words:
+                    if '/' in word:
+                        # Split and add both forms
+                        parts = word.split('/')
+                        all_existing_words.update(parts)
+                    else:
+                        all_existing_words.add(word)
         except Exception as e:
             print(f"Error processing deck {deck_path}: {str(e)}")
             # Continue with other decks even if one fails
@@ -79,16 +86,24 @@ def compare_with_existing_decks(
     # Compare and categorize words
     for category, words in new_words.items():
         for word in words:
-            # Skip if we've already processed this word in another category
-            word_lower = word.lower()
-            if word_lower in already_processed:
-                continue
+            # Parse the word, considering normalized adjective format
+            if '/' in word:
+                # Check both parts of combined adjectives
+                word_parts = word.split('/')
+                # If any part exists in existing words, consider the whole word as existing
+                is_existing = any(part.lower() in all_existing_words_lower for part in word_parts)
+            else:
+                word_lower = word.lower()
+                # Skip if we've already processed this word in another category
+                if word_lower in already_processed:
+                    continue
+                is_existing = word_lower in all_existing_words_lower
             
             # Mark as processed
-            already_processed.add(word_lower)
+            already_processed.add(word.lower())
             
-            # Check if word exists in existing decks
-            if word_lower in all_existing_words_lower:
+            # Categorize the word
+            if is_existing:
                 existing_words_dict[category].append(word)
             else:
                 new_words_dict[category].append(word)
@@ -143,7 +158,9 @@ def create_anki_deck(
     audio_files: Dict[str, str], 
     deck_name: str, 
     language: str,
-    store_deck: bool = True
+    store_deck: bool = True,
+    existing_deck_path: Optional[str] = None,
+    merge_existing: bool = False
 ) -> str:
     """
     Create an Anki deck from the words.
@@ -154,6 +171,8 @@ def create_anki_deck(
         deck_name: Name for the new deck
         language: Language of the words
         store_deck: Whether to save this deck to permanent storage
+        existing_deck_path: Path to an existing deck to merge with
+        merge_existing: Whether to merge with an existing deck
         
     Returns:
         Path to the created Anki deck file
@@ -170,8 +189,34 @@ def create_anki_deck(
     # Add media files
     media_files = []
     
+    # Check if we're merging with an existing deck
+    merged_words_dict = {category: [] for category in words_dict.keys()}
+    
+    if merge_existing and existing_deck_path:
+        # Load words from the existing deck
+        existing_words = get_existing_words_from_deck(existing_deck_path)
+        
+        # Merge with the new words
+        for category in words_dict.keys():
+            # Add existing words from this category
+            if category in existing_words:
+                merged_words_dict[category].extend(existing_words[category])
+            
+            # Add new words from this category
+            merged_words_dict[category].extend(words_dict[category])
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            merged_words_dict[category] = [
+                word for word in merged_words_dict[category] 
+                if not (word.lower() in seen or seen.add(word.lower()))
+            ]
+    else:
+        # Just use the provided words
+        merged_words_dict = words_dict
+    
     # Process each category and add cards
-    for category, words in words_dict.items():
+    for category, words in merged_words_dict.items():
         for word in words:
             # Create note fields
             fields = [
@@ -203,7 +248,7 @@ def create_anki_deck(
     # Create a companion JSON file with the words (for future reference)
     json_path = output_path.replace('.apkg', '.json')
     with open(json_path, 'w', encoding='utf-8') as f:
-        json.dump(words_dict, f, ensure_ascii=False, indent=2)
+        json.dump(merged_words_dict, f, ensure_ascii=False, indent=2)
     
     # Store the deck in permanent storage if requested
     if store_deck:

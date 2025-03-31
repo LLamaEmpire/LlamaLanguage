@@ -327,6 +327,7 @@ if uploaded_file is not None:
         # Display categorized words
         st.subheader("Extracted Words by Category")
         
+        # Create tabs for word categories
         tabs = st.tabs(list(st.session_state.extracted_words.keys()))
         for i, category in enumerate(st.session_state.extracted_words.keys()):
             with tabs[i]:
@@ -336,10 +337,27 @@ if uploaded_file is not None:
                     new_words_in_category = st.session_state.new_words.get(category, [])
                     existing_words_in_category = st.session_state.existing_words.get(category, [])
                     
-                    # Display as a table
-                    word_status = [("✅ New" if word in new_words_in_category else "🔄 Existing") for word in words]
+                    # Display as a table with word status
+                    word_status = []
+                    for word in words:
+                        if word in new_words_in_category:
+                            word_status.append("✅ New")
+                        elif word in existing_words_in_category:
+                            word_status.append("🔄 Already in deck")
+                        else:
+                            word_status.append("⚠️ Not categorized")
+                    
+                    # Create a dataframe for display
                     word_df = {"Word": words, "Status": word_status}
                     st.dataframe(word_df, use_container_width=True)
+                    
+                    # Add a toggle to show example sentences for the words
+                    if st.checkbox(f"Show example sentences for {category}", key=f"show_sentences_{category}"):
+                        for word in words:
+                            if word in st.session_state.word_sentences:
+                                sentences = st.session_state.word_sentences[word]
+                                if sentences:
+                                    st.write(f"**{word}**: {sentences[0]}")
                 else:
                     st.write("No words found in this category.")
         
@@ -350,6 +368,65 @@ if uploaded_file is not None:
         
         with col1:
             st.write("Anki Deck:")
+            if st.session_state.new_words and sum(len(words) for words in st.session_state.new_words.values()) > 0:
+                # Add option to create a new deck
+                st.subheader("Create Anki Deck")
+
+                # Allow merging with existing deck
+                merge_with_existing = st.checkbox("Merge with existing deck")
+                selected_deck_for_merge = None
+                
+                if merge_with_existing:
+                    # Get all stored Spanish decks for merging
+                    stored_decks = get_stored_decks(language_filter="Spanish")
+                    if stored_decks:
+                        deck_options = [deck_info['name'] for deck_info in stored_decks]
+                        deck_options.insert(0, "Select a deck")
+                        
+                        # Let user select a deck to merge with
+                        selected_deck_name = st.selectbox(
+                            "Select deck to merge with:",
+                            deck_options
+                        )
+                        
+                        if selected_deck_name != "Select a deck":
+                            # Find the selected deck info
+                            for deck_info in stored_decks:
+                                if deck_info['name'] == selected_deck_name:
+                                    selected_deck_for_merge = deck_info['path']
+                                    break
+                    else:
+                        st.warning("No existing decks found for merging. Creating a new deck instead.")
+                        merge_with_existing = False
+                
+                # Option to add custom deck name
+                custom_deck_name = st.text_input(
+                    "Custom deck name (optional):",
+                    value=f"New_Spanish_Words_{time.strftime('%Y%m%d_%H%M%S')}"
+                )
+                
+                if st.button("Generate Anki Deck"):
+                    if audio_enabled:
+                        audio_files = generate_audio_for_words(st.session_state.new_words, language)
+                    else:
+                        audio_files = {}
+                        
+                    # Create a new deck or merge with existing
+                    deck_path = create_anki_deck(
+                        st.session_state.new_words, 
+                        audio_files, 
+                        custom_deck_name, 
+                        language,
+                        store_deck=True,
+                        existing_deck_path=selected_deck_for_merge,
+                        merge_existing=merge_with_existing
+                    )
+                    
+                    st.session_state.generated_deck_path = deck_path
+                    st.success(f"Anki deck created successfully{'! Words have been merged with the selected deck.' if merge_with_existing else '!'}")
+                    st.rerun()
+                
+            # Show download option if a deck was generated
             if st.session_state.generated_deck_path:
                 with open(st.session_state.generated_deck_path, "rb") as file:
                     st.download_button(
@@ -358,7 +435,7 @@ if uploaded_file is not None:
                         file_name=os.path.basename(st.session_state.generated_deck_path),
                         mime="application/octet-stream"
                     )
-            else:
+            elif not st.session_state.new_words or sum(len(words) for words in st.session_state.new_words.values()) == 0:
                 st.info("No new words found, so no Anki deck was created.")
         
         with col2:

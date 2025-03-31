@@ -1,6 +1,6 @@
 import nltk
 import re
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Optional
 import spacy
 import spacy.cli
 from collections import defaultdict
@@ -197,23 +197,9 @@ def categorize_words(
     language: str, 
     min_length: int = 3, 
     include_proper_nouns: bool = False,
-    word_types: Dict[str, bool] = None,
-    existing_words: Set[str] = None
+    word_types: Optional[Dict[str, bool]] = None,
+    existing_words: Optional[Set[str]] = None
 ) -> Dict[str, List[str]]:
-    # Initialize default values for optional parameters
-    if word_types is None:
-        word_types = {
-            "nouns": True,
-            "verbs": True,
-            "adjectives": True,
-            "adverbs": True,
-            "proper_nouns": include_proper_nouns,
-            "numbers": False,
-            "other": False
-        }
-    
-    if existing_words is None:
-        existing_words = set()
     """
     Categorize words in the text by their part of speech using spaCy.
     
@@ -228,16 +214,7 @@ def categorize_words(
     Returns:
         Dictionary mapping categories to lists of words
     """
-    # Load language model
-    nlp = load_language_model(language)
-    
-    # Process the text
-    doc = nlp(text)
-    
-    # Initialize categories
-    categories = defaultdict(set)
-    
-    # Default word types (include all)
+    # Initialize default values for optional parameters
     if word_types is None:
         word_types = {
             "nouns": True,
@@ -248,6 +225,19 @@ def categorize_words(
             "numbers": False,
             "other": False
         }
+    
+    if existing_words is None:
+        existing_words = set()
+    # Load language model
+    nlp = load_language_model(language)
+    
+    # Process the text
+    doc = nlp(text)
+    
+    # Initialize categories
+    categories = defaultdict(set)
+    
+    # Use the existing word_types parameter
     
     # Map category names to POS tags
     category_to_pos = {
