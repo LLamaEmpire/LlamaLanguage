@@ -60,17 +60,39 @@ def extract_words_from_apkg(deck_path: str) -> Dict[str, List[str]]:
             if fields:
                 word = fields[0].strip()  # First field is usually the word
                 
+                # Clean the word - remove HTML and extra whitespace
+                word = re.sub('<[^<]+?>', '', word).strip()
+                
+                # Skip empty words or non-word characters
+                if not word or not any(c.isalnum() for c in word):
+                    continue
+                    
+                # Skip long strings that are likely sentences
+                if len(word.split()) > 3:
+                    continue
+                
                 # Simple categorization based on common patterns
-                if word.endswith('ar') or word.endswith('er') or word.endswith('ir'):
-                    words_dict["verbs"].append(word)
+                # Default to "other" if we can't categorize
+                category = "other"
+                
+                # Verb patterns in Spanish
+                if any(word.endswith(suffix) for suffix in ['ar', 'er', 'ir', 'arse', 'erse', 'irse']):
+                    category = "verbs"
+                # Adverb patterns
                 elif word.endswith('mente'):
-                    words_dict["adverbs"].append(word)
-                elif word.endswith('o') or word.endswith('a'):
-                    words_dict["adjectives"].append(word)
+                    category = "adverbs"
+                # Adjective patterns
+                elif any(word.endswith(suffix) for suffix in ['o', 'a', 'os', 'as', 'oso', 'osa', 'ble']):
+                    category = "adjectives"
+                # Common noun endings
+                elif any(word.endswith(suffix) for suffix in ['ción', 'sión', 'dad', 'tad', 'eza']):
+                    category = "nouns"
                 elif word[0].isupper():
-                    words_dict["nouns"].append(word)
-                else:
-                    words_dict["other"].append(word)
+                    category = "nouns"
+                
+                # Add the word to the appropriate category if not already present
+                if word not in words_dict[category]:
+                    words_dict[category].append(word)
         
         return words_dict
 
