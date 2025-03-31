@@ -69,14 +69,22 @@ if 'custom_deck_paths' not in st.session_state:
 if 'uploaded_deck_names' not in st.session_state:
     st.session_state.uploaded_deck_names = []
 
-# Store uploaded deck in session state
+# Store uploaded deck in session state and permanent storage
 if uploaded_deck is not None:
     # Only process the deck if it's not already been uploaded
     if uploaded_deck.name not in st.session_state.uploaded_deck_names:
         deck_temp_path = save_temp_file(uploaded_deck)
+        
+        # Save the deck to permanent storage
+        from deck_storage import save_deck_to_storage
+        stored_deck_path = save_deck_to_storage(deck_temp_path, uploaded_deck.name, language)
+        
         st.session_state.custom_deck_paths.append(deck_temp_path)
         st.session_state.uploaded_deck_names.append(uploaded_deck.name)
-        st.sidebar.success(f"Deck '{uploaded_deck.name}' uploaded successfully!")
+        st.sidebar.success(f"Deck '{uploaded_deck.name}' uploaded successfully and added to deck management!")
+        
+        # Force refresh to show new deck in deck management
+        st.rerun()
     
     # Clear the file uploader
     # This is a workaround to prevent the same file from being processed multiple times
@@ -337,32 +345,32 @@ if uploaded_file is not None:
                         # Show which words are new and which are existing
                         new_words_in_category = st.session_state.new_words.get(category, [])
                         existing_words_in_category = st.session_state.existing_words.get(category, [])
+                        
+                        # Display as a table with word status
+                        word_status = []
+                        for word in words:
+                            if word in new_words_in_category:
+                                word_status.append("✅ New")
+                            elif word in existing_words_in_category:
+                                word_status.append("🔄 Already in deck")
+                            else:
+                                word_status.append("⚠️ Not categorized")
+                        
+                        # Create a dataframe for display
+                        word_df = {"Word": words, "Status": word_status}
+                        st.dataframe(word_df, use_container_width=True)
+                        
+                        # Add a toggle to show example sentences for the words
+                        if st.checkbox(f"Show example sentences for {category}", key=f"show_sentences_{category}"):
+                            for word in words:
+                                if word in st.session_state.word_sentences:
+                                    sentences = st.session_state.word_sentences[word]
+                                    if sentences:
+                                        st.write(f"**{word}**: {sentences[0]}")
+                    else:
+                        st.write("No words found in this category.")
         else:
             st.info("No words have been extracted yet. Please upload a PDF to extract words.")
-                    
-                    # Display as a table with word status
-                    word_status = []
-                    for word in words:
-                        if word in new_words_in_category:
-                            word_status.append("✅ New")
-                        elif word in existing_words_in_category:
-                            word_status.append("🔄 Already in deck")
-                        else:
-                            word_status.append("⚠️ Not categorized")
-                    
-                    # Create a dataframe for display
-                    word_df = {"Word": words, "Status": word_status}
-                    st.dataframe(word_df, use_container_width=True)
-                    
-                    # Add a toggle to show example sentences for the words
-                    if st.checkbox(f"Show example sentences for {category}", key=f"show_sentences_{category}"):
-                        for word in words:
-                            if word in st.session_state.word_sentences:
-                                sentences = st.session_state.word_sentences[word]
-                                if sentences:
-                                    st.write(f"**{word}**: {sentences[0]}")
-                else:
-                    st.write("No words found in this category.")
         
         # Option to download the generated deck
         st.subheader("Export Options")
