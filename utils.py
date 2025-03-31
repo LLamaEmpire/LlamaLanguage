@@ -46,12 +46,24 @@ def save_temp_file(uploaded_file) -> str:
     Returns:
         Path to the saved temporary file
     """
-    # Create a temporary file
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    temp_file.write(uploaded_file.getvalue())
-    temp_file.close()
-    
-    return temp_file.name
+    try:
+        # Create a temporary file
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        
+        # Handle file data in chunks to avoid memory issues with large files
+        # Set a sensible chunk size (5MB)
+        CHUNK_SIZE = 5 * 1024 * 1024  
+        
+        # Get and process file content in chunks
+        file_content = uploaded_file.getvalue()
+        for i in range(0, len(file_content), CHUNK_SIZE):
+            chunk = file_content[i:i + CHUNK_SIZE]
+            temp_file.write(chunk)
+            
+        temp_file.close()
+        return temp_file.name
+    except Exception as e:
+        raise Exception(f"Failed to save uploaded file: {str(e)}")
 
 def cleanup_temp_files(file_paths: List[str]) -> None:
     """

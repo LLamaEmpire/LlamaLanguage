@@ -59,8 +59,32 @@ with st.sidebar.expander("Advanced Options"):
     include_proper_nouns = st.checkbox("Include proper nouns", value=False)
     audio_enabled = st.checkbox("Generate audio", value=True)
 
-# File uploader
-uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
+# File uploader with explicit type and additional help text
+uploaded_file = st.file_uploader(
+    "Choose a PDF file", 
+    type="pdf",
+    help="Upload a PDF file to extract and categorize words (max 200MB)."
+)
+
+# Display a notice about file size limitations
+st.caption("Note: If you're having trouble uploading large files, try uploading a smaller PDF file.")
+
+# Option to use sample PDF
+use_sample = st.checkbox("Use sample PDF instead", value=False)
+if use_sample:
+    if os.path.exists("sample.pdf"):
+        st.success("Using sample PDF file")
+        with open("sample.pdf", "rb") as f:
+            # Create a synthetic UploadedFile
+            class SyntheticUploadedFile:
+                def __init__(self, content):
+                    self._content = content
+                def getvalue(self):
+                    return self._content
+            
+            uploaded_file = SyntheticUploadedFile(f.read())
+    else:
+        st.error("Sample PDF not found. Please upload your own PDF file.")
 
 if uploaded_file is not None:
     # Save uploaded file to a temporary file to determine the number of pages
