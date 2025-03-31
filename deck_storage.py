@@ -125,18 +125,30 @@ def get_stored_decks(language_filter: Optional[str] = None) -> List[Dict[str, st
     """
     ensure_storage_dir()
     
+    print(f"DEBUG: get_stored_decks called with language_filter: {language_filter}")
+    print(f"DEBUG: Looking for decks in directory: {DECK_STORAGE_DIR}")
+    
     decks = []
     for filename in os.listdir(DECK_STORAGE_DIR):
+        filepath = os.path.join(DECK_STORAGE_DIR, filename)
+        print(f"DEBUG: Checking file: {filename}, full path: {filepath}")
+        
         # Include both .apkg files and files without extension (which are valid JSON files)
-        if filename.endswith('.apkg') or (os.path.isfile(os.path.join(DECK_STORAGE_DIR, filename)) and '.' not in filename):
-            path = os.path.join(DECK_STORAGE_DIR, filename)
+        if filename.endswith('.apkg') or (os.path.isfile(filepath) and '.' not in filename):
+            path = filepath
             
             # For files without extension, check if they're valid JSON
-            if '.' not in filename and not is_valid_json_file(path):
-                continue
-                
+            if '.' not in filename:
+                print(f"DEBUG: File without extension found: {filename}")
+                if not is_valid_json_file(path):
+                    print(f"DEBUG: File is not a valid JSON file, skipping: {filename}")
+                    continue
+                else:
+                    print(f"DEBUG: Valid JSON file without extension: {filename}")
+            
             # Extract language from filename
             language = extract_language_from_filename(filename)
+            print(f"DEBUG: Extracted language: {language} for file: {filename}")
             
             # Apply language filter if specified
             if language_filter and language.lower() != language_filter.lower():

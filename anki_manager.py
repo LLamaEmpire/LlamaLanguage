@@ -19,15 +19,23 @@ def get_existing_words_from_deck(deck_path: str) -> Dict[str, List[str]]:
     """
     from deck_storage import is_valid_json_file
     
+    print(f"DEBUG: get_existing_words_from_deck called with path: {deck_path}")
+    
     # For files without extension (which are already JSON)
     if '.' not in deck_path:
         json_path = deck_path
+        print(f"DEBUG: No extension found, using as JSON path: {json_path}")
     else:
         # For .apkg files, check the companion JSON file
         json_path = deck_path.replace('.apkg', '.json')
+        print(f"DEBUG: Extension found, converted to JSON path: {json_path}")
     
     # Check if the JSON file exists and is a valid JSON file
-    if os.path.exists(json_path) and is_valid_json_file(json_path):
+    file_exists = os.path.exists(json_path)
+    is_valid = is_valid_json_file(json_path) if file_exists else False
+    print(f"DEBUG: JSON file exists: {file_exists}, is valid JSON: {is_valid}")
+    
+    if file_exists and is_valid:
         try:
             with open(json_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
