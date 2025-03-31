@@ -327,15 +327,18 @@ if uploaded_file is not None:
         # Display categorized words
         st.subheader("Extracted Words by Category")
         
-        # Create tabs for word categories
-        tabs = st.tabs(list(st.session_state.extracted_words.keys()))
-        for i, category in enumerate(st.session_state.extracted_words.keys()):
-            with tabs[i]:
-                words = st.session_state.extracted_words[category]
-                if words:
-                    # Show which words are new and which are existing
-                    new_words_in_category = st.session_state.new_words.get(category, [])
-                    existing_words_in_category = st.session_state.existing_words.get(category, [])
+        # Create tabs for word categories if there are any extracted words
+        if st.session_state.extracted_words:
+            tabs = st.tabs(list(st.session_state.extracted_words.keys()))
+            for i, category in enumerate(st.session_state.extracted_words.keys()):
+                with tabs[i]:
+                    words = st.session_state.extracted_words[category]
+                    if words:
+                        # Show which words are new and which are existing
+                        new_words_in_category = st.session_state.new_words.get(category, [])
+                        existing_words_in_category = st.session_state.existing_words.get(category, [])
+        else:
+            st.info("No words have been extracted yet. Please upload a PDF to extract words.")
                     
                     # Display as a table with word status
                     word_status = []
