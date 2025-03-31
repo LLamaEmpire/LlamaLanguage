@@ -260,11 +260,13 @@ def categorize_words(
     if "proper_nouns" in word_types:
         include_proper_nouns = word_types["proper_nouns"]
     
-    # Initialize a set for words that have already been added (to prevent duplicates)
-    already_added = set()
+    # Initialize a set for words that have already been added (to prevent duplicates within the same text)
+    already_processed = set()  # For de-duplication within the text
+    existing_words_set = set()  # For tracking which words already exist in decks
+    
     if existing_words is not None:
-        # Add existing words to already_added (case insensitive)
-        already_added.update([w.lower() for w in existing_words])
+        # Keep track of existing words (case insensitive)
+        existing_words_set.update([w.lower() for w in existing_words])
     
     # Process words
     for token in doc:
@@ -287,12 +289,12 @@ def categorize_words(
         if token.pos_ not in allowed_pos:
             continue
         
-        # Skip if this word (or variant) already exists in the already_added set
-        if word.lower() in already_added:
+        # Skip if this word (or variant) already exists in the already_processed set (deduplication within text)
+        if word.lower() in already_processed:
             continue
         
-        # Add word to the already_added set to prevent future duplicates
-        already_added.add(word.lower())
+        # Add word to the already_processed set to prevent future duplicates within the text
+        already_processed.add(word.lower())
         
         # Add word to its category
         category = POS_TO_CATEGORY.get(token.pos_, "Other")

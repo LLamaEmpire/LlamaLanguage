@@ -80,7 +80,7 @@ def compare_with_existing_decks(
     # Convert all existing words to lowercase for case-insensitive comparison
     all_existing_words_lower = {word.lower() for word in all_existing_words}
     
-    # Keep track of words we've seen in this processing session to avoid duplicates
+    # Keep track of words we've seen in this processing session to avoid duplicates across categories
     already_processed = set()
     
     # Compare and categorize words
@@ -94,12 +94,15 @@ def compare_with_existing_decks(
                 is_existing = any(part.lower() in all_existing_words_lower for part in word_parts)
             else:
                 word_lower = word.lower()
-                # Skip if we've already processed this word in another category
-                if word_lower in already_processed:
-                    continue
+                # Check if word already exists in any deck
                 is_existing = word_lower in all_existing_words_lower
+                
+                # Skip duplicates across categories, but still keep track of all words
+                if word_lower in already_processed:
+                    # Even if we skip adding it to dictionaries, we want to continue with other words
+                    continue
             
-            # Mark as processed
+            # Mark as processed to prevent duplicates across categories
             already_processed.add(word.lower())
             
             # Categorize the word
