@@ -53,25 +53,44 @@ uploaded_deck = st.sidebar.file_uploader(
     help="Upload an existing Anki deck to compare with extracted words."
 )
 
+# Initialize session state for uploaded decks if it doesn't exist
+if 'custom_deck_paths' not in st.session_state:
+    st.session_state.custom_deck_paths = []
+if 'uploaded_deck_names' not in st.session_state:
+    st.session_state.uploaded_deck_names = []
+
 # Store uploaded deck in session state
 if uploaded_deck is not None:
-    deck_temp_path = save_temp_file(uploaded_deck)
-    if 'custom_deck_paths' not in st.session_state:
-        st.session_state.custom_deck_paths = []
-    
-    # Check if this deck is already in the list
-    if deck_temp_path not in st.session_state.custom_deck_paths:
+    # Only process the deck if it's not already been uploaded
+    if uploaded_deck.name not in st.session_state.uploaded_deck_names:
+        deck_temp_path = save_temp_file(uploaded_deck)
         st.session_state.custom_deck_paths.append(deck_temp_path)
+        st.session_state.uploaded_deck_names.append(uploaded_deck.name)
         st.sidebar.success(f"Deck '{uploaded_deck.name}' uploaded successfully!")
+    
+    # Clear the file uploader
+    # This is a workaround to prevent the same file from being processed multiple times
+    uploaded_deck = None
 
-# Display all uploaded decks
-if 'custom_deck_paths' in st.session_state and st.session_state.custom_deck_paths:
-    st.sidebar.write(f"Uploaded decks: {len(st.session_state.custom_deck_paths)}")
+# Display all uploaded decks and provide a way to clear them
+if st.session_state.uploaded_deck_names:
+    st.sidebar.write(f"Uploaded decks: {', '.join(st.session_state.uploaded_deck_names)}")
+    if st.sidebar.button("Clear uploaded decks"):
+        st.session_state.custom_deck_paths = []
+        st.session_state.uploaded_deck_names = []
+        st.sidebar.success("All uploaded decks have been cleared")
 
 # Existing deck selection
 existing_decks = get_existing_decks()
-if 'custom_deck_paths' in st.session_state:
-    existing_decks.extend(st.session_state.custom_deck_paths)
+if st.session_state.custom_deck_paths:
+    # Add uploaded decks with their names for better identification
+    named_decks = []
+    for i, path in enumerate(st.session_state.custom_deck_paths):
+        if i < len(st.session_state.uploaded_deck_names):
+            named_decks.append(f"{st.session_state.uploaded_deck_names[i]} ({path})")
+        else:
+            named_decks.append(path)
+    existing_decks.extend(named_decks)
 
 selected_decks = st.sidebar.multiselect(
     "Select decks to compare with",

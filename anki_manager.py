@@ -40,7 +40,7 @@ def compare_with_existing_decks(
     
     Args:
         new_words: Dictionary of categorized words extracted from the PDF
-        existing_decks: List of paths to existing Anki decks
+        existing_decks: List of paths to existing Anki decks (can include format "name (path)")
         
     Returns:
         Tuple of (new_words_dict, existing_words_dict)
@@ -51,15 +51,29 @@ def compare_with_existing_decks(
     
     # Get all words from existing decks
     all_existing_words = set()
+    
     for deck_path in existing_decks:
-        deck_words = get_existing_words_from_deck(deck_path)
-        for category, words in deck_words.items():
-            all_existing_words.update(words)
+        # Handle the case where the deck path is in the format "name (path)"
+        if " (" in deck_path and deck_path.endswith(")"):
+            # Extract the actual path from the format "name (path)"
+            deck_path = deck_path.split(" (", 1)[1].rstrip(")")
+        
+        try:
+            deck_words = get_existing_words_from_deck(deck_path)
+            for category, words in deck_words.items():
+                all_existing_words.update(words)
+        except Exception as e:
+            print(f"Error processing deck {deck_path}: {str(e)}")
+            # Continue with other decks even if one fails
+            continue
+    
+    # Convert all existing words to lowercase for case-insensitive comparison
+    all_existing_words_lower = {word.lower() for word in all_existing_words}
     
     # Compare and categorize words
     for category, words in new_words.items():
         for word in words:
-            if word in all_existing_words:
+            if word.lower() in all_existing_words_lower:
                 existing_words_dict[category].append(word)
             else:
                 new_words_dict[category].append(word)
