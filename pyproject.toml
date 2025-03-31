@@ -5,9 +5,11 @@ description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
     "genanki>=0.13.1",
+    "google-cloud-texttospeech>=2.25.1",
     "gtts>=2.5.4",
     "nltk>=3.9.1",
     "pypdf2>=3.0.1",
+    "sift-stack-py>=0.4.2",
     "spacy>=3.8.4",
     "streamlit>=1.44.0",
 ]

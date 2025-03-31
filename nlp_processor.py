@@ -91,33 +91,76 @@ def normalize_adjectives(adjectives: Set[str], language: str) -> List[str]:
     if not adj_list:
         return []
     
-    # Gender suffixes by language
-    gender_suffixes = {
-        "Spanish": [('o', 'a'), ('os', 'as')],
-        "French": [('', 'e'), ('s', 'es')],
-        "Italian": [('o', 'a'), ('i', 'e')],
-        "Portuguese": [('o', 'a'), ('os', 'as')],
-        # Add other languages as needed
+    # Gender and number patterns by language
+    # Spanish has more complex patterns than just o/a endings
+    gender_patterns = {
+        "Spanish": [
+            # Regular patterns (o/a endings)
+            ('o', 'a'), ('os', 'as'),
+            # Special patterns for Spanish adjectives
+            ('dor', 'dora'), ('tor', 'tora'), ('sor', 'sora'),
+            ('ón', 'ona'), ('án', 'ana'), ('én', 'ena'), ('ín', 'ina'),
+            ('or', 'ora'), ('és', 'esa'), ('ón', 'ona'),
+            # For adjectives ending in consonants with gender forms
+            ('', 'a'),  # e.g., "español/española"
+            # Adjectives with plural forms but same singular
+            ('ista', 'istas'), ('e', 'es')
+        ],
+        "French": [
+            ('', 'e'), ('s', 'es'), ('er', 'ère'), ('f', 've'),
+            ('eux', 'euse'), ('teur', 'trice'), ('if', 'ive'),
+            ('on', 'onne'), ('et', 'ette'), ('el', 'elle')
+        ],
+        "Italian": [
+            ('o', 'a'), ('i', 'e'), ('e', 'i')
+        ],
+        "Portuguese": [
+            ('o', 'a'), ('os', 'as'), ('ão', 'ã'), ('ês', 'esa'),
+            ('or', 'ora'), ('eu', 'eia')
+        ],
     }
     
     # If language not supported, return original list
-    if language not in gender_suffixes:
+    if language not in gender_patterns:
         return sorted(adj_list)
+    
+    # For Spanish specifically, we want to handle some irregular adjectives
+    spanish_irregulars = {
+        # Common irregular Spanish adjectives and their feminine forms
+        "blanco": "blanca",
+        "poco": "poca",
+        "rico": "rica",
+        "seco": "seca",
+        "fresco": "fresca",
+        "público": "pública",
+        "político": "política",
+        "simpático": "simpática",
+        "científico": "científica"
+    }
     
     # Group adjectives by potential gender pairs
     matched_pairs = set()
     normalized_adjs = []
     
+    # Special handling for Spanish irregular adjectives
+    if language == "Spanish":
+        for adj in sorted(adj_list):
+            if adj in spanish_irregulars and spanish_irregulars[adj] in adj_list:
+                matched_pairs.add(adj)
+                matched_pairs.add(spanish_irregulars[adj])
+                normalized_adjs.append(f"{adj}/{spanish_irregulars[adj]}")
+    
+    # Process regular pattern matching for all adjectives
     for adj in sorted(adj_list):
-        # Skip if already processed
+        # Skip if already matched as an irregular or previously processed
         if adj in matched_pairs:
             continue
         
-        # Check for gender pairs
+        # Check for gender/number patterns
         found_match = False
-        for male_suffix, female_suffix in gender_suffixes[language]:
+        for male_suffix, female_suffix in gender_patterns[language]:
+            # Check if adjective ends with the male suffix
             if adj.endswith(male_suffix) and len(adj) > len(male_suffix):
-                # Create the potential female form
                 stem = adj[:-len(male_suffix)] if male_suffix else adj
                 female_form = stem + female_suffix
                 
@@ -129,14 +172,14 @@ def normalize_adjectives(adjectives: Set[str], language: str) -> List[str]:
                     found_match = True
                     break
                 
+            # Check if adjective ends with the female suffix (to find the male form)
             elif adj.endswith(female_suffix) and len(adj) > len(female_suffix):
-                # Create the potential male form
                 stem = adj[:-len(female_suffix)]
                 male_form = stem + male_suffix
                 
                 # Check if the male form exists in our adjective list
                 if male_form in adj_list:
-                    # Already handled when we encountered the male form
+                    # Skip adding the pair here as it's handled when we encounter the male form
                     matched_pairs.add(adj)
                     matched_pairs.add(male_form)
                     found_match = True

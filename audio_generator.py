@@ -3,9 +3,13 @@ import tempfile
 from typing import Dict, List, Optional
 from gtts import gTTS
 
+# Import Google Cloud TTS functionality
+from gcloud_tts import is_gcloud_tts_available, generate_audio_gcloud
+
 def generate_audio_for_word(word: str, language: str) -> Optional[str]:
     """
-    Generate audio for a single word using Google Text-to-Speech.
+    Generate audio for a single word using either Google Cloud Text-to-Speech (if available)
+    or fallback to gTTS.
     
     Args:
         word: The word to generate audio for
@@ -14,27 +18,37 @@ def generate_audio_for_word(word: str, language: str) -> Optional[str]:
     Returns:
         Path to the generated audio file or None if generation failed
     """
-    # Map language names to gTTS language codes
+    # Map language names to language codes
     language_map = {
-        "French": "fr",
-        "Spanish": "es",
-        "German": "de",
-        "Italian": "it",
-        "Japanese": "ja",
-        "Chinese": "zh-CN",
-        "Russian": "ru",
-        "English": "en"
+        "French": {"gtts": "fr", "gcloud": "fr-FR"},
+        "Spanish": {"gtts": "es", "gcloud": "es-ES"},
+        "German": {"gtts": "de", "gcloud": "de-DE"},
+        "Italian": {"gtts": "it", "gcloud": "it-IT"},
+        "Japanese": {"gtts": "ja", "gcloud": "ja-JP"},
+        "Chinese": {"gtts": "zh-CN", "gcloud": "zh-CN"},
+        "Russian": {"gtts": "ru", "gcloud": "ru-RU"},
+        "English": {"gtts": "en", "gcloud": "en-US"}
     }
     
-    lang_code = language_map.get(language, "en")
+    lang_info = language_map.get(language, {"gtts": "en", "gcloud": "en-US"})
     
+    # First try using Google Cloud TTS if available
+    if is_gcloud_tts_available():
+        try:
+            gcloud_audio_path = generate_audio_gcloud(word, lang_info["gcloud"])
+            if gcloud_audio_path:
+                return gcloud_audio_path
+        except Exception as e:
+            print(f"Error with Google Cloud TTS for '{word}': {str(e)}. Falling back to gTTS.")
+    
+    # Fallback to gTTS if Google Cloud TTS is not available or fails
     try:
         # Create a temporary file for the audio
         fd, temp_path = tempfile.mkstemp(suffix='.mp3')
         os.close(fd)
         
         # Generate the audio using gTTS
-        tts = gTTS(text=word, lang=lang_code, slow=False)
+        tts = gTTS(text=word, lang=lang_info["gtts"], slow=False)
         tts.save(temp_path)
         
         return temp_path

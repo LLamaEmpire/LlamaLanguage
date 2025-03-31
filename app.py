@@ -15,8 +15,8 @@ from deck_storage import get_stored_decks, delete_stored_deck
 
 # Set page config
 st.set_page_config(
-    page_title="Language Learning Platform",
-    page_icon="📚",
+    page_title="Spanish Learning Platform",
+    page_icon="🇪🇸",
     layout="wide"
 )
 
@@ -45,18 +45,15 @@ if 'category_csv_paths' not in st.session_state:
     st.session_state.category_csv_paths = {}
 
 # Main app
-st.title("Language Learning Platform")
-st.write("Upload a PDF, extract words, categorize them, and create Anki decks with audio.")
+st.title("Spanish Learning Platform")
+st.write("Upload a Spanish PDF, extract words, categorize them, and create Anki decks with audio.")
 
 # Sidebar for configuration
 st.sidebar.header("Configuration")
 
-# Language selection
-language = st.sidebar.selectbox(
-    "Select language",
-    ["French", "Spanish", "German", "Italian", "Japanese", "Chinese", "Russian"],
-    index=0
-)
+# Set language to Spanish only
+language = "Spanish"
+st.sidebar.info("This platform is dedicated to Spanish language learning only.")
 
 # Anki deck upload
 st.sidebar.subheader("Upload Existing Anki Deck")
@@ -127,6 +124,28 @@ word_types = {
 with st.sidebar.expander("Advanced Options"):
     min_word_length = st.slider("Minimum word length", 1, 10, 3)
     audio_enabled = st.checkbox("Generate audio", value=True)
+    
+    # Google Cloud TTS option
+    st.subheader("Audio Generation")
+    st.info("This platform supports Google Cloud Text-to-Speech for high-quality audio. " +
+           "To use this service, please provide your Google Cloud credentials file.")
+    
+    # Google Cloud credentials file uploader
+    gc_credentials = st.file_uploader(
+        "Upload Google Cloud credentials file (JSON)",
+        type="json",
+        key="gc_credentials",
+        help="Upload your Google Cloud service account credentials to enable high-quality audio."
+    )
+    
+    if gc_credentials is not None:
+        # Save the credentials to a temporary file and set the environment variable
+        temp_cred_path = save_temp_file(gc_credentials)
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_cred_path
+        st.success("Google Cloud credentials loaded successfully!")
+    
+    # Note about audio quality
+    st.caption("If Google Cloud credentials are not provided, the platform will use the default gTTS service.")
 
 # File uploader with explicit type and additional help text
 uploaded_file = st.file_uploader(
@@ -278,7 +297,7 @@ if uploaded_file is not None:
             status_text.text("Creating Anki deck...")
             if new_words:
                 deck_name = f"New_{language}_Words_{time.strftime('%Y%m%d_%H%M%S')}"
-                deck_path = create_anki_deck(new_words, audio_files, deck_name, language)
+                deck_path = create_anki_deck(new_words, audio_files, deck_name, language, store_deck=True)
                 st.session_state.generated_deck_path = deck_path
             else:
                 st.session_state.generated_deck_path = None
@@ -451,11 +470,11 @@ if uploaded_file is not None:
 
 # Add a section for deck management
 st.markdown("---")
-st.header("Anki Deck Management")
-st.write("Here you can view, manage, and delete stored Anki decks.")
+st.header("Spanish Anki Deck Management")
+st.write("Here you can view, manage, and delete stored Spanish Anki decks.")
 
-# Get all stored decks
-stored_decks = get_stored_decks()
+# Get Spanish stored decks only
+stored_decks = get_stored_decks(language_filter="Spanish")
 
 if stored_decks:
     # Create a table to display stored decks
@@ -527,4 +546,4 @@ else:
 
 # Footer
 st.markdown("---")
-st.markdown("© 2023 Language Learning Platform")
+st.markdown("© 2025 Spanish Learning Platform")
