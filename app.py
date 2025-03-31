@@ -132,7 +132,12 @@ if selected_decks:
                 
                 # Get the words from this deck
                 from deck_storage import is_valid_json_file
-                json_path = deck_path.replace('.apkg', '.json')
+                
+                # For files without extension (which are already JSON)
+                if '.' not in deck_path:
+                    json_path = deck_path
+                else:
+                    json_path = deck_path.replace('.apkg', '.json')
                 
                 if os.path.exists(json_path) and is_valid_json_file(json_path):
                     try:

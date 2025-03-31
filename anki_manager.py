@@ -12,18 +12,19 @@ def get_existing_words_from_deck(deck_path: str) -> Dict[str, List[str]]:
     Extract words from an existing Anki deck.
     
     Args:
-        deck_path: Path to the Anki deck (.apkg file)
+        deck_path: Path to the Anki deck (.apkg file) or JSON file
         
     Returns:
         Dictionary of categorized words from the deck
     """
-    # This is a simplified version - in a real implementation, you would use
-    # an Anki SQLite parser to extract words from the deck
-    
-    # For demonstration, let's assume we have a companion JSON file with the words
-    json_path = deck_path.replace('.apkg', '.json')
-    
     from deck_storage import is_valid_json_file
+    
+    # For files without extension (which are already JSON)
+    if '.' not in deck_path:
+        json_path = deck_path
+    else:
+        # For .apkg files, check the companion JSON file
+        json_path = deck_path.replace('.apkg', '.json')
     
     # Check if the JSON file exists and is a valid JSON file
     if os.path.exists(json_path) and is_valid_json_file(json_path):
