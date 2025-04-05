@@ -4,7 +4,7 @@ import genanki
 import random
 import time
 from typing import Dict, List, Set, Tuple, Any, Optional
-from deck_storage import save_deck_to_storage, get_words_from_all_stored_decks
+from deck_storage import save_deck_to_storage, get_words_from_all_stored_decks, is_valid_json_file, extract_words_from_apkg
 from utils import get_existing_words
 
 def get_existing_words_from_deck(deck_path: str) -> Dict[str, List[str]]:
@@ -17,7 +17,7 @@ def get_existing_words_from_deck(deck_path: str) -> Dict[str, List[str]]:
     Returns:
         Dictionary of categorized words from the deck
     """
-    from deck_storage import is_valid_json_file
+    from deck_storage import is_valid_json_file, extract_words_from_apkg
     
     print(f"DEBUG: get_existing_words_from_deck called with path: {deck_path}")
     
@@ -35,24 +35,54 @@ def get_existing_words_from_deck(deck_path: str) -> Dict[str, List[str]]:
     is_valid = is_valid_json_file(json_path) if file_exists else False
     print(f"DEBUG: JSON file exists: {file_exists}, is valid JSON: {is_valid}")
     
+    # First try to load from the JSON companion file
     if file_exists and is_valid:
         try:
             with open(json_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                words_dict = json.load(f)
+                print(f"DEBUG: Successfully loaded words from JSON file: {len(words_dict)} categories")
+                return words_dict
         except UnicodeDecodeError:
             # Try with different encodings if utf-8 fails
             try:
                 with open(json_path, 'r', encoding='latin-1') as f:
-                    return json.load(f)
+                    words_dict = json.load(f)
+                    print(f"DEBUG: Successfully loaded words from JSON file with latin-1 encoding: {len(words_dict)} categories")
+                    return words_dict
             except Exception as e:
-                print(f"Error reading words from {json_path}: {str(e)}")
-                return {}
+                print(f"Error reading words from {json_path} with latin-1 encoding: {str(e)}")
+                # Continue to try direct extraction
         except Exception as e:
             print(f"Error reading words from {json_path}: {str(e)}")
-            return {}
+            # Continue to try direct extraction
     
-    # If no companion file or not a valid JSON, return empty dict
-    return {}
+    # If JSON file doesn't exist or is invalid, try direct extraction from .apkg
+    if deck_path.endswith('.apkg') and os.path.exists(deck_path):
+        try:
+            print(f"DEBUG: Attempting direct extraction from .apkg file: {deck_path}")
+            words_dict = extract_words_from_apkg(deck_path)
+            
+            # Save the extracted words to a JSON file for future use
+            try:
+                with open(json_path, 'w', encoding='utf-8') as f:
+                    json.dump(words_dict, f, ensure_ascii=False, indent=2)
+                print(f"DEBUG: Saved extracted words to JSON file: {json_path}")
+            except Exception as e:
+                print(f"Warning: Could not save extracted words to JSON: {str(e)}")
+            
+            return words_dict
+        except Exception as e:
+            print(f"Error extracting words directly from {deck_path}: {str(e)}")
+    
+    # If all extraction methods fail, return empty dictionary with the expected structure
+    print(f"DEBUG: All extraction methods failed, returning empty dictionary")
+    return {
+        "nouns": [],
+        "verbs": [],
+        "adjectives": [],
+        "adverbs": [],
+        "other": []
+    }
 
 def compare_with_existing_decks(
     new_words: Dict[str, List[str]], 

@@ -197,6 +197,25 @@ with st.sidebar.expander("Advanced Options"):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_cred_path
         st.success("Google Cloud credentials loaded successfully!")
     
+    # Add option to save audio files to a specific directory
+    save_audio_locally = st.checkbox("Save audio files locally", value=False, 
+                                   help="Save audio files to a local directory instead of using temporary files")
+    
+    audio_output_dir = None
+    if save_audio_locally:
+        # Default audio output directory
+        default_audio_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated_audio")
+        
+        # Allow user to specify a custom audio directory
+        custom_audio_dir = st.text_input("Audio output directory", value=default_audio_dir,
+                                       help="Directory where audio files will be saved")
+        
+        if custom_audio_dir:
+            # Create the directory if it doesn't exist
+            os.makedirs(custom_audio_dir, exist_ok=True)
+            audio_output_dir = custom_audio_dir
+            st.success(f"Audio files will be saved to: {audio_output_dir}")
+    
     # Note about audio quality
     st.caption("If Google Cloud credentials are not provided, the platform will use the default gTTS service.")
 
@@ -342,7 +361,15 @@ if uploaded_file is not None:
                 status_text.text("Generating audio for new words (this may take some time due to API rate limits)...")
                 # Display a note about rate limiting
                 st.info("⚠️ Due to API rate limits, only a subset of words (max 50 per category) will have audio generated. This helps prevent 429 (Too Many Requests) errors.")
-                audio_files = generate_audio_for_words(new_words, language)
+                # Use the audio output directory if specified
+                if save_audio_locally and audio_output_dir:
+                    # Create a subdirectory for this specific deck
+                    deck_audio_dir = os.path.join(audio_output_dir, custom_deck_name)
+                    os.makedirs(deck_audio_dir, exist_ok=True)
+                    audio_files = generate_audio_for_words(new_words, language, deck_audio_dir)
+                    st.success(f"Audio files saved to: {deck_audio_dir}")
+                else:
+                    audio_files = generate_audio_for_words(st.session_state.new_words, language)
                 progress_bar.progress(80)
             else:
                 audio_files = {}
@@ -467,7 +494,15 @@ if uploaded_file is not None:
                     if audio_enabled:
                         st.info("⚠️ Due to API rate limits, only a subset of words (max 50 per category) will have audio generated. This helps prevent 429 (Too Many Requests) errors.")
                         with st.spinner("Generating audio for words (this may take some time due to API rate limits)..."):
-                            audio_files = generate_audio_for_words(st.session_state.new_words, language)
+                            # Use the audio output directory if specified
+                            if save_audio_locally and audio_output_dir:
+                                # Create a subdirectory for this specific deck
+                                deck_audio_dir = os.path.join(audio_output_dir, custom_deck_name)
+                                os.makedirs(deck_audio_dir, exist_ok=True)
+                                audio_files = generate_audio_for_words(st.session_state.new_words, language, deck_audio_dir)
+                                st.success(f"Audio files saved to: {deck_audio_dir}")
+                            else:
+                                audio_files = generate_audio_for_words(st.session_state.new_words, language)
                     else:
                         audio_files = {}
                         
@@ -683,4 +718,4 @@ else:
 
 # Footer
 st.markdown("---")
-st.markdown("© Sebastian Skora 2025")
+st.markdown(" Llama Empire 2025")

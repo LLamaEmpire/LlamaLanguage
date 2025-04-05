@@ -29,6 +29,15 @@ def extract_words_from_apkg(deck_path: str) -> Dict[str, List[str]]:
     
     print(f"DEBUG: Opening deck file: {deck_path}")
     
+    # Initialize empty word dictionary
+    words_dict = {
+        "nouns": [],
+        "verbs": [],
+        "adjectives": [],
+        "adverbs": [],
+        "other": []
+    }
+    
     # Create a temporary directory to extract the apkg
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
@@ -42,87 +51,176 @@ def extract_words_from_apkg(deck_path: str) -> Dict[str, List[str]]:
             if not os.path.exists(db_path):
                 print(f"DEBUG: Database file not found at {db_path}")
                 print(f"DEBUG: Directory contents: {os.listdir(temp_dir)}")
-                return {"other": []}
+                return words_dict
                 
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             
-            # First, try to get note model configurations
-            cursor.execute("SELECT flds FROM col")
-            model_configs = cursor.fetchall()
-            print(f"DEBUG: Found {len(model_configs)} model configurations")
+            # Try multiple approaches to extract words
             
-            # Get all notes (which contain the actual card content)
-            cursor.execute("""
-                SELECT DISTINCT flds 
-                FROM notes 
-                WHERE flds IS NOT NULL AND length(trim(flds)) > 0
-            """)
-            notes = cursor.fetchall()
-            print(f"DEBUG: Found {len(notes)} notes")
+            # Approach 1: Get model configurations to understand field structure
+            try:
+                cursor.execute("SELECT models FROM col")
+                model_data = cursor.fetchone()
+                if model_data and model_data[0]:
+                    # Parse the model data (it's stored as JSON)
+                    import json
+                    try:
+                        models = json.loads(model_data[0])
+                        print(f"DEBUG: Successfully parsed model data, found {len(models)} models")
+                        
+                        # Extract field names from models
+                        field_names = []
+                        for model_id, model in models.items():
+                            if 'flds' in model:
+                                for field in model['flds']:
+                                    if 'name' in field:
+                                        field_name = field['name'].lower()
+                                        if any(keyword in field_name for keyword in ['word', 'term', 'vocabulary', 'spanish', 'french', 'german']):
+                                            field_names.append(field['ord'])  # Field order/index
+                    except json.JSONDecodeError:
+                        print("DEBUG: Failed to parse model data as JSON")
+                        field_names = []
+            except Exception as e:
+                print(f"DEBUG: Error getting model data: {str(e)}")
+                field_names = []
+            
+            # Approach 2: Get all notes (which contain the actual card content)
+            try:
+                cursor.execute("""
+                    SELECT id, flds, sfld FROM notes 
+                    WHERE flds IS NOT NULL AND length(trim(flds)) > 0
+                """)
+                notes = cursor.fetchall()
+                print(f"DEBUG: Found {len(notes)} notes")
+                
+                # Process each note
+                for note in notes:
+                    note_id, flds, sfld = note
+                    
+                    # Try to extract words from the sorted field (sfld) first
+                    # This is usually the front of the card and often contains the word
+                    if sfld:
+                        words = [sfld.strip()]
+                    else:
+                        # Otherwise, split all fields and try to find the word
+                        fields = flds.split('\x1f')
+                        
+                        # If we identified likely word fields from the model, use those
+                        if field_names:
+                            words = [fields[i] for i in field_names if i < len(fields)]
+                        else:
+                            # Otherwise, use the first field as the word (common convention)
+                            words = [fields[0]] if fields else []
+                    
+                    # Process each potential word
+                    for word in words:
+                        # Clean the word
+                        word = re.sub('<[^<]+?>', '', word).strip()
+                        
+                        # Skip empty words or non-word characters
+                        if not word or not any(c.isalnum() for c in word):
+                            continue
+                        
+                        # Skip long strings that are likely sentences
+                        if len(word.split()) > 3:
+                            continue
+                        
+                        # Try to determine the category
+                        category = categorize_word(word)
+                        
+                        # Add the word to the appropriate category if not already present
+                        if word not in words_dict[category]:
+                            words_dict[category].append(word)
+                            
+                            # Also try to get the translation from other fields
+                            # This could help with categorization
+                            if flds and len(fields) > 1:
+                                for field in fields[1:]:
+                                    # Skip empty fields or HTML-only fields
+                                    clean_field = re.sub('<[^<]+?>', '', field).strip()
+                                    if not clean_field:
+                                        continue
+                                    
+                                    # If this looks like a translation, use it to help categorize
+                                    if len(clean_field.split()) <= 3:
+                                        # This could be a translation, use it for additional categorization
+                                        pass
+            except Exception as e:
+                print(f"DEBUG: Error processing notes: {str(e)}")
+            
+            # Approach 3: Try to get cards directly
+            try:
+                cursor.execute("""
+                    SELECT c.id, n.flds, n.sfld
+                    FROM cards c
+                    JOIN notes n ON c.nid = n.id
+                    WHERE n.flds IS NOT NULL AND length(trim(n.flds)) > 0
+                """)
+                cards = cursor.fetchall()
+                print(f"DEBUG: Found {len(cards)} cards")
+                
+                # Process cards similar to notes
+                for card in cards:
+                    card_id, flds, sfld = card
+                    
+                    # Process similar to notes approach
+                    if sfld:
+                        words = [sfld.strip()]
+                    else:
+                        fields = flds.split('\x1f')
+                        words = [fields[0]] if fields else []
+                    
+                    for word in words:
+                        # Clean and process as before
+                        word = re.sub('<[^<]+?>', '', word).strip()
+                        if not word or not any(c.isalnum() for c in word) or len(word.split()) > 3:
+                            continue
+                        
+                        category = categorize_word(word)
+                        if word not in words_dict[category]:
+                            words_dict[category].append(word)
+            except Exception as e:
+                print(f"DEBUG: Error processing cards: {str(e)}")
             
             # Close the connection
             conn.close()
         
         except Exception as e:
             print(f"ERROR extracting words from deck: {str(e)}")
-            return {"other": []}
-            
-        # Process the notes to extract words
-        words_dict = {
-            "nouns": [],
-            "verbs": [],
-            "adjectives": [],
-            "adverbs": [],
-            "other": []
-        }
+            return words_dict
+    
+    return words_dict
+
+def categorize_word(word: str) -> str:
+    """
+    Categorize a word based on common patterns.
+    
+    Args:
+        word: Word to categorize
         
-        print("DEBUG: Processing notes...")
-        for note in notes:
-            try:
-                # Split fields (they're separated by \x1f)
-                fields = note[0].split('\x1f')
-                if not fields:
-                    continue
-                    
-                word = fields[0].strip()  # First field is usually the word
-                
-                # Clean the word - remove HTML and extra whitespace
-                word = re.sub('<[^<]+?>', '', word).strip()
-                print(f"DEBUG: Processing word: {word}")
-                
-                # Skip empty words or non-word characters
-                if not word or not any(c.isalnum() for c in word):
-                    continue
-                    
-                # Skip long strings that are likely sentences
-                if len(word.split()) > 3:
-                    continue
-                
-                # Simple categorization based on common patterns
-                # Default to "other" if we can't categorize
-                category = "other"
-                
-                # Verb patterns in Spanish
-                if any(word.endswith(suffix) for suffix in ['ar', 'er', 'ir', 'arse', 'erse', 'irse']):
-                    category = "verbs"
-                # Adverb patterns
-                elif word.endswith('mente'):
-                    category = "adverbs"
-                # Adjective patterns
-                elif any(word.endswith(suffix) for suffix in ['o', 'a', 'os', 'as', 'oso', 'osa', 'ble']):
-                    category = "adjectives"
-                # Common noun endings
-                elif any(word.endswith(suffix) for suffix in ['ción', 'sión', 'dad', 'tad', 'eza']):
-                    category = "nouns"
-                elif word[0].isupper():
-                    category = "nouns"
-                
-                # Add the word to the appropriate category if not already present
-                if word not in words_dict[category]:
-                    words_dict[category].append(word)
-        
-        return words_dict
+    Returns:
+        Category name (nouns, verbs, adjectives, adverbs, other)
+    """
+    # Default to "other" if we can't categorize
+    category = "other"
+    
+    # Verb patterns in Spanish
+    if any(word.endswith(suffix) for suffix in ['ar', 'er', 'ir', 'arse', 'erse', 'irse']):
+        category = "verbs"
+    # Adverb patterns
+    elif word.endswith('mente'):
+        category = "adverbs"
+    # Adjective patterns
+    elif any(word.endswith(suffix) for suffix in ['o', 'a', 'os', 'as', 'oso', 'osa', 'ble']):
+        category = "adjectives"
+    # Common noun endings
+    elif any(word.endswith(suffix) for suffix in ['ción', 'sión', 'dad', 'tad', 'eza']):
+        category = "nouns"
+    elif word[0].isupper():
+        category = "nouns"
+    
+    return category
 
 def save_deck_to_storage(deck_path: str, deck_name: Optional[str] = None, language: str = "Spanish") -> str:
     """
