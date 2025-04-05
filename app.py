@@ -124,6 +124,8 @@ selected_decks = st.sidebar.multiselect(
 # Show words in selected decks if any are selected
 if selected_decks:
     with st.sidebar.expander("Words in selected decks"):
+        all_words_found = False  # Flag to track if we found any words
+        
         for deck_option in selected_decks:
             # Extract the path from the format "name (path)"
             if " (" in deck_option and deck_option.endswith(")"):
@@ -139,6 +141,8 @@ if selected_decks:
                 else:
                     json_path = deck_path.replace('.apkg', '.json')
                 
+                # Try to get words from JSON file first
+                words_found = False
                 if os.path.exists(json_path) and is_valid_json_file(json_path):
                     try:
                         with open(json_path, 'r', encoding='utf-8') as f:
@@ -148,6 +152,8 @@ if selected_decks:
                             # Show words by category with a limit
                             for category, words in deck_words.items():
                                 if words:
+                                    words_found = True
+                                    all_words_found = True
                                     # Limit to 10 words per category to avoid cluttering the sidebar
                                     display_words = words[:10]
                                     if len(words) > 10:
@@ -156,10 +162,44 @@ if selected_decks:
                                     st.write(f"*{category}*: {', '.join(display_words)}")
                     except Exception as e:
                         st.write(f"Error reading words from {deck_name}: {str(e)}")
-                else:
+                
+                # If no words found in JSON, try direct extraction from .apkg
+                if not words_found and deck_path.endswith('.apkg') and os.path.exists(deck_path):
+                    try:
+                        from deck_storage import extract_words_from_apkg
+                        deck_words = extract_words_from_apkg(deck_path)
+                        
+                        st.write(f"**{deck_name}**")
+                        
+                        # Show words by category with a limit
+                        for category, words in deck_words.items():
+                            if words:
+                                words_found = True
+                                all_words_found = True
+                                # Limit to 10 words per category to avoid cluttering the sidebar
+                                display_words = words[:10]
+                                if len(words) > 10:
+                                    display_words.append(f"... and {len(words) - 10} more")
+                                
+                                st.write(f"*{category}*: {', '.join(display_words)}")
+                        
+                        # Save the extracted words to a JSON file for future use
+                        try:
+                            with open(json_path, 'w', encoding='utf-8') as f:
+                                json.dump(deck_words, f, ensure_ascii=False, indent=2)
+                        except Exception as e:
+                            print(f"Warning: Could not save extracted words to JSON: {str(e)}")
+                    except Exception as e:
+                        st.write(f"Error extracting words from {deck_name}: {str(e)}")
+                
+                if not words_found:
                     st.write(f"No valid word list found for {deck_name}")
             else:
                 st.write(f"Cannot display words for {deck_option}")
+        
+        # If no words were found in any deck, show a clear message
+        if not all_words_found:
+            st.info("No words could be extracted from the selected decks. This might be due to an unsupported deck format or empty decks.")
 
 # Word type selection
 st.sidebar.subheader("Word Types to Include")
@@ -487,7 +527,7 @@ if uploaded_file is not None:
                 # Option to add custom deck name
                 custom_deck_name = st.text_input(
                     "Custom deck name (optional):",
-                    value=f"New_Spanish_Words_{time.strftime('%Y%m%d_%H%M%S')}"
+                    value=f"New_{language}_Words_{time.strftime('%Y%m%d_%H%M%S')}"
                 )
                 
                 if st.button("Generate Anki Deck"):
